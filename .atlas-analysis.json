@@ -1,0 +1,197 @@
+{
+  "projectType": "saas",
+  "projectName": "ZITADEL",
+  "projectDescription": "Open-source identity and access management platform with SSO, MFA, Passkeys, and multi-tenancy.",
+  "theme": "linden",
+  "primaryColor": "#5469d4",
+  "lightColor": "#bec6ef",
+  "darkColor": "#2073c4",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": ["introduction", "quickstart"]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/architecture",
+              "concepts/multi-tenancy",
+              "concepts/authentication",
+              "concepts/authorization",
+              "concepts/event-sourcing"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/docker-compose",
+              "deployment/kubernetes",
+              "deployment/configuration",
+              "deployment/production"
+            ]
+          },
+          {
+            "group": "User Management",
+            "pages": [
+              "user-management/users",
+              "user-management/organizations",
+              "user-management/projects",
+              "user-management/roles"
+            ]
+          },
+          {
+            "group": "Authentication",
+            "pages": [
+              "authentication/login-ui",
+              "authentication/passkeys",
+              "authentication/mfa",
+              "authentication/social-login",
+              "authentication/ldap"
+            ]
+          },
+          {
+            "group": "Integration",
+            "pages": [
+              "integration/oidc",
+              "integration/saml",
+              "integration/scim",
+              "integration/actions",
+              "integration/webhooks"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": ["api/overview", "api/authentication", "api/quickstart"]
+          },
+          {
+            "group": "User Service",
+            "pages": [
+              "api/user-service/overview",
+              "api/user-service/create-user",
+              "api/user-service/update-user",
+              "api/user-service/delete-user",
+              "api/user-service/list-users"
+            ]
+          },
+          {
+            "group": "Organization Service",
+            "pages": [
+              "api/organization-service/overview",
+              "api/organization-service/create-organization",
+              "api/organization-service/update-organization",
+              "api/organization-service/list-organizations"
+            ]
+          },
+          {
+            "group": "Project Service",
+            "pages": [
+              "api/project-service/overview",
+              "api/project-service/create-project",
+              "api/project-service/update-project",
+              "api/project-service/list-projects"
+            ]
+          },
+          {
+            "group": "Application Service",
+            "pages": [
+              "api/application-service/overview",
+              "api/application-service/create-application",
+              "api/application-service/update-application",
+              "api/application-service/list-applications"
+            ]
+          },
+          {
+            "group": "Session Service",
+            "pages": [
+              "api/session-service/overview",
+              "api/session-service/create-session",
+              "api/session-service/list-sessions",
+              "api/session-service/terminate-session"
+            ]
+          },
+          {
+            "group": "Action Service",
+            "pages": [
+              "api/action-service/overview",
+              "api/action-service/create-action",
+              "api/action-service/update-action",
+              "api/action-service/list-actions"
+            ]
+          },
+          {
+            "group": "Admin Service",
+            "pages": [
+              "api/admin-service/overview",
+              "api/admin-service/instance-management",
+              "api/admin-service/system-settings"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "SDKs & Examples",
+        "groups": [
+          {
+            "group": "SDKs",
+            "pages": [
+              "sdks/overview",
+              "sdks/javascript",
+              "sdks/go",
+              "sdks/python",
+              "sdks/dotnet"
+            ]
+          },
+          {
+            "group": "Examples",
+            "pages": [
+              "examples/nextjs",
+              "examples/react",
+              "examples/angular",
+              "examples/nodejs",
+              "examples/python"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Multi-tenant identity infrastructure with Instances and Organizations",
+    "OpenID Connect and SAML 2.0 authentication",
+    "Passkeys (FIDO2/WebAuthn) and MFA support",
+    "Actions and webhooks for custom flows",
+    "SCIM 2.0 server for user provisioning",
+    "Self-hosted and cloud deployment options",
+    "Event-sourced audit trail",
+    "Role-based access control (RBAC)",
+    "Identity brokering with external IdPs",
+    "Customizable login UI and branding"
+  ],
+  "publicApiSurface": [
+    "User Service (Create, Update, Delete, List users)",
+    "Organization Service (Manage organizations)",
+    "Project Service (Manage projects and applications)",
+    "Application Service (OIDC, SAML, API apps)",
+    "Session Service (Session management)",
+    "Action Service (Custom webhooks and code)",
+    "IDP Service (External identity providers)",
+    "Admin Service (Instance and system management)",
+    "Auth Service (Authentication endpoints)",
+    "Settings Service (Policies and configurations)",
+    "Feature Service (Feature flags)",
+    "Metadata Service (Custom metadata)",
+    "Authorization Service (Permission checks)",
+    "OIDC endpoints (/oauth/v2/authorize, /oauth/v2/token)",
+    "SAML endpoints (/saml/v2/SSO, /saml/v2/metadata)",
+    "SCIM 2.0 endpoints (/scim/v2/Users, /scim/v2/Groups)"
+  ]
+}
