@@ -1,0 +1,176 @@
+---
+title: List Applications
+description: Search and list applications in your projects
+---
+
+## Endpoint
+
+```
+POST /v2/applications/_search
+```
+
+## Description
+
+Returns a list of applications matching the input parameters. The results can be filtered by project, state, type, and name. It can be sorted by id, name, creation date, change date, or state.
+
+## Required Permission
+
+- `project.app.read`
+
+## Request Body
+
+<ParamField body="pagination" type="object">
+  Pagination and sorting.
+  
+  <ParamField body="offset" type="string">
+    Pagination offset.
+  </ParamField>
+  
+  <ParamField body="limit" type="integer">
+    Maximum number of results.
+  </ParamField>
+  
+  <ParamField body="asc" type="boolean">
+    Sort ascending.
+  </ParamField>
+</ParamField>
+
+<ParamField body="sortingColumn" type="string">
+  Field to sort by.
+  
+  Options:
+  - `APPLICATION_SORTING_APP_NAME`
+  - `APPLICATION_SORTING_CREATION_DATE`
+  - `APPLICATION_SORTING_CHANGE_DATE`
+</ParamField>
+
+<ParamField body="filters" type="array">
+  Criteria to filter the applications.
+  
+  <ParamField body="nameFilter" type="object">
+    Filter by application name.
+    
+    <ParamField body="name" type="string">
+      Name to search for.
+    </ParamField>
+    
+    <ParamField body="method" type="string">
+      Search method.
+    </ParamField>
+  </ParamField>
+  
+  <ParamField body="projectIdFilter" type="object">
+    Filter by project.
+    
+    <ParamField body="projectId" type="string">
+      Project ID to filter by.
+    </ParamField>
+  </ParamField>
+  
+  <ParamField body="appStateFilter" type="object">
+    Filter by application state.
+    
+    <ParamField body="state" type="string">
+      State to filter by.
+    </ParamField>
+  </ParamField>
+</ParamField>
+
+## Response
+
+<ResponseField name="applications" type="array">
+  List of applications matching the query.
+  
+  <ResponseField name="applicationId" type="string">
+    Unique identifier of the application.
+  </ResponseField>
+  
+  <ResponseField name="projectId" type="string">
+    Project ID the application belongs to.
+  </ResponseField>
+  
+  <ResponseField name="name" type="string">
+    Name of the application.
+  </ResponseField>
+  
+  <ResponseField name="state" type="string">
+    Current state of the application.
+  </ResponseField>
+  
+  <ResponseField name="oidcConfig" type="object">
+    OIDC configuration (if applicable).
+    
+    <ResponseField name="clientId" type="string">
+      OAuth2 client ID.
+    </ResponseField>
+    
+    <ResponseField name="redirectUris" type="array">
+      Configured redirect URIs.
+    </ResponseField>
+  </ResponseField>
+  
+  <ResponseField name="apiConfig" type="object">
+    API configuration (if applicable).
+  </ResponseField>
+  
+  <ResponseField name="samlConfig" type="object">
+    SAML configuration (if applicable).
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="pagination" type="object">
+  Pagination information.
+  
+  <ResponseField name="totalResult" type="string">
+    Total number of apps matching the query.
+  </ResponseField>
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X POST https://your-domain.zitadel.cloud/v2/applications/_search \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "pagination": {
+      "limit": 50,
+      "asc": true
+    },
+    "sortingColumn": "APPLICATION_SORTING_APP_NAME",
+    "filters": [
+      {
+        "projectIdFilter": {
+          "projectId": "69629026806489455"
+        }
+      }
+    ]
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "applications": [
+    {
+      "applicationId": "1035496534033449",
+      "projectId": "69629026806489455",
+      "name": "My Web App",
+      "state": "APP_STATE_ACTIVE",
+      "oidcConfig": {
+        "clientId": "1035496534033449@myproject",
+        "redirectUris": ["https://myapp.com/callback"]
+      }
+    }
+  ],
+  "pagination": {
+    "totalResult": "8"
+  }
+}
+```
+
+## Error Responses
+
+- `400 Bad Request` - Invalid query parameters
+- `403 Forbidden` - Insufficient permissions

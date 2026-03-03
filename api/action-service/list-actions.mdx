@@ -1,0 +1,190 @@
+---
+title: List Targets
+description: Search for configured targets
+---
+
+Lists all targets matching the specified criteria. By default, all targets of the instance are returned.
+
+## HTTP Request
+
+```
+POST /v2/actions/targets/search
+```
+
+## Permissions
+
+Requires `action.target.read` permission.
+
+## Request Body
+
+<ParamField path="pagination" type="object">
+  List limitations and ordering.
+  
+  <ParamField path="offset" type="integer">
+    Number of results to skip.
+  </ParamField>
+  
+  <ParamField path="limit" type="integer">
+    Maximum number of results to return.
+  </ParamField>
+  
+  <ParamField path="asc" type="boolean">
+    Sort order: true for ascending, false for descending.
+  </ParamField>
+</ParamField>
+
+<ParamField path="sorting_column" type="enum">
+  The field to sort by. Default is `TARGET_FIELD_NAME_CREATION_DATE`. Options:
+  - `TARGET_FIELD_NAME_CREATION_DATE`
+  - `TARGET_FIELD_NAME_NAME`
+</ParamField>
+
+<ParamField path="filters" type="array">
+  Array of filter criteria.
+  
+  <ParamField path="target_name_filter" type="object">
+    Filter by target name.
+    
+    <ParamField path="target_name" type="string">
+      The name to search for.
+    </ParamField>
+    
+    <ParamField path="method" type="enum">
+      Comparison method:
+      - `TEXT_FILTER_METHOD_EQUALS`
+      - `TEXT_FILTER_METHOD_CONTAINS`
+      - `TEXT_FILTER_METHOD_STARTS_WITH`
+      - `TEXT_FILTER_METHOD_ENDS_WITH`
+    </ParamField>
+  </ParamField>
+  
+  <ParamField path="in_target_ids_filter" type="object">
+    Filter by target IDs.
+    
+    <ParamField path="target_ids" type="array">
+      List of target IDs to include.
+    </ParamField>
+  </ParamField>
+</ParamField>
+
+## Response
+
+<ResponseField name="pagination" type="object">
+  Pagination information.
+  
+  <ResponseField name="total_result" type="integer">
+    Total number of targets matching the filters.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="targets" type="array">
+  Array of targets matching the query.
+  
+  <ResponseField name="id" type="string">
+    Unique identifier of the target.
+  </ResponseField>
+  
+  <ResponseField name="creation_date" type="timestamp">
+    When the target was created.
+  </ResponseField>
+  
+  <ResponseField name="change_date" type="timestamp">
+    When the target was last modified.
+  </ResponseField>
+  
+  <ResponseField name="name" type="string">
+    Display name of the target.
+  </ResponseField>
+  
+  <ResponseField name="target_type" type="object">
+    The target type configuration (rest_webhook, rest_call, or rest_async).
+  </ResponseField>
+  
+  <ResponseField name="timeout" type="string">
+    Request timeout duration.
+  </ResponseField>
+  
+  <ResponseField name="endpoint" type="string">
+    The endpoint URL.
+  </ResponseField>
+  
+  <ResponseField name="signing_key" type="string">
+    Current signing key for the target.
+  </ResponseField>
+  
+  <ResponseField name="payload_type" type="enum">
+    Payload format: PAYLOAD_TYPE_JSON, PAYLOAD_TYPE_JWT, or PAYLOAD_TYPE_JWE.
+  </ResponseField>
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X POST 'https://api.zitadel.cloud/v2/actions/targets/search' \
+  -H 'Authorization: Bearer <TOKEN>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "pagination": {
+      "offset": 0,
+      "limit": 10,
+      "asc": true
+    },
+    "sorting_column": "TARGET_FIELD_NAME_CREATION_DATE",
+    "filters": [
+      {
+        "target_name_filter": {
+          "target_name": "ip_allow_list",
+          "method": "TEXT_FILTER_METHOD_EQUALS"
+        }
+      },
+      {
+        "in_target_ids_filter": {
+          "target_ids": [
+            "69629023906488334",
+            "69622366012355662"
+          ]
+        }
+      }
+    ]
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "pagination": {
+    "total_result": 1
+  },
+  "targets": [
+    {
+      "id": "69629023906488334",
+      "creation_date": "2024-12-18T07:50:47.492Z",
+      "change_date": "2025-01-23T10:34:18.051Z",
+      "name": "ip_allow_list",
+      "rest_webhook": {
+        "interrupt_on_error": true
+      },
+      "timeout": "10s",
+      "endpoint": "https://example.com/hooks/ip_check",
+      "signing_key": "98KmsU67",
+      "payload_type": "PAYLOAD_TYPE_JSON"
+    }
+  ]
+}
+```
+
+## Error Responses
+
+| Status Code | Description |
+|-------------|-------------|
+| 400 | Invalid query or feature flag `actions` not enabled |
+| 401 | Unauthorized - missing or invalid authentication |
+| 403 | Forbidden - insufficient permissions |
+
+## Notes
+
+- Results are paginated - use `offset` and `limit` for pagination
+- Filters are combined with AND logic
+- Default sorting is by creation date in ascending order
+- The `signing_key` is included in the response for existing targets

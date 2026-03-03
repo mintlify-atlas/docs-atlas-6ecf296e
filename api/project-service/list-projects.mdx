@@ -1,0 +1,167 @@
+---
+title: List Projects
+description: Search and list projects in your ZITADEL instance
+---
+
+## Endpoint
+
+```
+POST /v2/projects/_search
+```
+
+## Description
+
+List all matching projects. By default, all projects of the instance that the caller has permission to read are returned. Make sure to include a limit and sorting for pagination.
+
+## Required Permission
+
+- `project.read`
+
+## Request Body
+
+<ParamField body="pagination" type="object">
+  Pagination settings.
+  
+  <ParamField body="offset" type="string">
+    Offset for pagination.
+  </ParamField>
+  
+  <ParamField body="limit" type="integer">
+    Maximum number of results.
+  </ParamField>
+  
+  <ParamField body="asc" type="boolean">
+    Sort ascending.
+  </ParamField>
+</ParamField>
+
+<ParamField body="sortingColumn" type="string">
+  Field to sort by. The default is the creation date.
+  
+  Options:
+  - `PROJECT_FIELD_NAME_NAME`
+  - `PROJECT_FIELD_NAME_CREATION_DATE`
+  - `PROJECT_FIELD_NAME_CHANGE_DATE`
+</ParamField>
+
+<ParamField body="filters" type="array">
+  Criteria to query for.
+  
+  <ParamField body="nameFilter" type="object">
+    Filter by project name.
+    
+    <ParamField body="name" type="string">
+      Name to search for.
+    </ParamField>
+    
+    <ParamField body="method" type="string">
+      Search method.
+    </ParamField>
+  </ParamField>
+  
+  <ParamField body="projectIdFilter" type="object">
+    Filter by project ID.
+    
+    <ParamField body="projectId" type="string">
+      Project ID to filter by.
+    </ParamField>
+  </ParamField>
+  
+  <ParamField body="organizationIdFilter" type="object">
+    Filter by organization.
+    
+    <ParamField body="organizationId" type="string">
+      Organization ID to filter by.
+    </ParamField>
+  </ParamField>
+</ParamField>
+
+## Response
+
+<ResponseField name="pagination" type="object">
+  Pagination information.
+  
+  <ResponseField name="totalResult" type="string">
+    Total number of projects matching the query.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="projects" type="array">
+  List of projects matching the query.
+  
+  <ResponseField name="projectId" type="string">
+    Unique identifier of the project.
+  </ResponseField>
+  
+  <ResponseField name="name" type="string">
+    Name of the project.
+  </ResponseField>
+  
+  <ResponseField name="state" type="string">
+    Current state of the project.
+  </ResponseField>
+  
+  <ResponseField name="resourceOwner" type="string">
+    Organization ID that owns the project.
+  </ResponseField>
+  
+  <ResponseField name="projectRoleAssertion" type="boolean">
+    Whether role assertion is enabled.
+  </ResponseField>
+  
+  <ResponseField name="authorizationRequired" type="boolean">
+    Whether authorization is required.
+  </ResponseField>
+  
+  <ResponseField name="projectAccessRequired" type="boolean">
+    Whether project access is required.
+  </ResponseField>
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X POST https://your-domain.zitadel.cloud/v2/projects/_search \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "pagination": {
+      "limit": 50,
+      "asc": true
+    },
+    "sortingColumn": "PROJECT_FIELD_NAME_NAME",
+    "filters": [
+      {
+        "organizationIdFilter": {
+          "organizationId": "69629026806489455"
+        }
+      }
+    ]
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "pagination": {
+    "totalResult": "15"
+  },
+  "projects": [
+    {
+      "projectId": "69629012906488334",
+      "name": "My Application Project",
+      "state": "PROJECT_STATE_ACTIVE",
+      "resourceOwner": "69629026806489455",
+      "projectRoleAssertion": true,
+      "authorizationRequired": false,
+      "projectAccessRequired": true
+    }
+  ]
+}
+```
+
+## Error Responses
+
+- `400 Bad Request` - Invalid list query
+- `403 Forbidden` - Insufficient permissions

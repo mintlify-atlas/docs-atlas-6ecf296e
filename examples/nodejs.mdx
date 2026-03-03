@@ -1,0 +1,364 @@
+---
+title: Node.js Example
+description: Integrate ZITADEL authentication into Node.js applications and secure APIs with OAuth 2.0.
+---
+
+# Node.js Example
+
+Learn how to integrate ZITADEL authentication into Node.js applications, secure REST APIs, and manage users programmatically.
+
+## Overview
+
+This guide covers three main use cases for Node.js:
+
+1. **Web Application Authentication**: Adding login to Express.js apps
+2. **API Security**: Protecting REST APIs with JWT validation
+3. **Management API Access**: Programmatic user and resource management
+
+## Web Application Authentication
+
+### Using Passport.js with OpenID Connect
+
+Install dependencies:
+
+```bash
+npm install express express-session passport passport-openidconnect
+```
+
+Configure Passport strategy:
+
+```javascript
+const express = require('express');
+const session = require('express-session');
+const passport = require('passport');
+const { Strategy } = require('passport-openidconnect');
+
+const app = express();
+
+// Session configuration
+app.use(session({
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: process.env.NODE_ENV === 'production' }
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Configure OpenID Connect strategy
+passport.use('oidc', new Strategy({
+  issuer: process.env.ZITADEL_DOMAIN,
+  authorizationURL: `${process.env.ZITADEL_DOMAIN}/oauth/v2/authorize`,
+  tokenURL: `${process.env.ZITADEL_DOMAIN}/oauth/v2/token`,
+  userInfoURL: `${process.env.ZITADEL_DOMAIN}/oidc/v1/userinfo`,
+  clientID: process.env.ZITADEL_CLIENT_ID,
+  clientSecret: process.env.ZITADEL_CLIENT_SECRET,
+  callbackURL: 'http://localhost:3000/auth/callback',
+  scope: ['openid', 'profile', 'email']
+}, (issuer, profile, done) => {
+  return done(null, profile);
+}));
+
+passport.serializeUser((user, done) => done(null, user));
+passport.deserializeUser((user, done) => done(null, user));
+
+// Routes
+app.get('/', (req, res) => {
+  res.send(`
+    <h1>Welcome</h1>
+    ${req.isAuthenticated() 
+      ? `<p>Hello, ${req.user.displayName}! <a href="/profile">Profile</a> | <a href="/logout">Logout</a></p>`
+      : `<a href="/login">Login</a>`
+    }
+  `);
+});
+
+app.get('/login', passport.authenticate('oidc'));
+
+app.get('/auth/callback',
+  passport.authenticate('oidc', { failureRedirect: '/' }),
+  (req, res) => res.redirect('/profile')
+);
+
+app.get('/profile', (req, res) => {
+  if (!req.isAuthenticated()) {
+    return res.redirect('/login');
+  }
+  res.json({
+    user: req.user,
+    claims: req.user._json
+  });
+});
+
+app.get('/logout', (req, res) => {
+  req.logout(() => {
+    res.redirect('/');
+  });
+});
+
+app.listen(3000, () => {
+  console.log('Server running on http://localhost:3000');
+});
+```
+
+## Securing REST APIs
+
+### JWT Token Validation
+
+Install dependencies:
+
+```bash
+npm install express express-jwt jwks-rsa
+```
+
+Create middleware for token validation:
+
+```javascript
+const express = require('express');
+const { expressjwt: jwt } = require('express-jwt');
+const jwksRsa = require('jwks-rsa');
+
+const app = express();
+
+// JWT validation middleware
+const checkJwt = jwt({
+  secret: jwksRsa.expressJwtSecret({
+    cache: true,
+    rateLimit: true,
+    jwksRequestsPerMinute: 5,
+    jwksUri: `${process.env.ZITADEL_DOMAIN}/oauth/v2/keys`
+  }),
+  audience: process.env.ZITADEL_CLIENT_ID,
+  issuer: process.env.ZITADEL_DOMAIN,
+  algorithms: ['RS256']
+});
+
+// Public endpoint
+app.get('/api/public', (req, res) => {
+  res.json({ message: 'Public endpoint - no authentication required' });
+});
+
+// Protected endpoint
+app.get('/api/protected', checkJwt, (req, res) => {
+  res.json({
+    message: 'Protected endpoint',
+    user: req.auth.sub,
+    claims: req.auth
+  });
+});
+
+// Role-based endpoint
+app.get('/api/admin', checkJwt, (req, res) => {
+  const roles = req.auth['urn:zitadel:iam:org:project:roles'];
+  
+  if (!roles || !roles.admin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  
+  res.json({ message: 'Admin endpoint' });
+});
+
+app.listen(3000, () => {
+  console.log('API server running on http://localhost:3000');
+});
+```
+
+### Testing the API
+
+```bash
+# Get access token
+curl -X POST https://your-instance.zitadel.cloud/oauth/v2/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=client_credentials" \
+  -d "client_id=YOUR_CLIENT_ID" \
+  -d "client_secret=YOUR_CLIENT_SECRET" \
+  -d "scope=openid"
+
+# Call protected endpoint
+curl http://localhost:3000/api/protected \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+## Using the Management API
+
+### Install the JavaScript SDK
+
+```bash
+npm install @zitadel/client
+```
+
+Configure `.npmrc`:
+
+```ini
+@zitadel:registry=https://npm.pkg.github.com
+```
+
+### Create Users Programmatically
+
+```javascript
+const { createUserServiceClient, makeReqCtx } = require('@zitadel/client/v2');
+const { createServerTransport } = require('@zitadel/client/node');
+
+// Initialize client
+const transport = createServerTransport(
+  process.env.ZITADEL_SERVICE_USER_TOKEN,
+  { baseUrl: process.env.ZITADEL_API_URL }
+);
+
+const userService = createUserServiceClient(transport);
+
+// Create a user
+async function createUser() {
+  try {
+    const response = await userService.addHumanUser({
+      ctx: makeReqCtx(process.env.ZITADEL_ORG_ID),
+      username: 'alice@example.com',
+      profile: {
+        givenName: 'Alice',
+        familyName: 'Smith',
+        displayName: 'Alice Smith'
+      },
+      email: {
+        email: 'alice@example.com',
+        isVerified: false
+      }
+    });
+    
+    console.log('User created:', response.userId);
+    return response;
+  } catch (error) {
+    console.error('Error creating user:', error);
+    throw error;
+  }
+}
+
+// Get user information
+async function getUser(userId) {
+  try {
+    const user = await userService.getUser(
+      {
+        ctx: makeReqCtx(process.env.ZITADEL_ORG_ID),
+        userId
+      },
+      {}
+    );
+    
+    return user;
+  } catch (error) {
+    console.error('Error fetching user:', error);
+    throw error;
+  }
+}
+
+// List users
+async function listUsers() {
+  try {
+    const users = await userService.listUsers(
+      {
+        ctx: makeReqCtx(process.env.ZITADEL_ORG_ID),
+        limit: 50,
+        offset: 0
+      },
+      {}
+    );
+    
+    return users.result;
+  } catch (error) {
+    console.error('Error listing users:', error);
+    throw error;
+  }
+}
+
+module.exports = { createUser, getUser, listUsers };
+```
+
+## Environment Variables
+
+Create a `.env` file:
+
+```env
+# Web application
+NODE_ENV=development
+SESSION_SECRET=your-session-secret
+ZITADEL_DOMAIN=https://your-instance.zitadel.cloud
+ZITADEL_CLIENT_ID=your-client-id
+ZITADEL_CLIENT_SECRET=your-client-secret
+
+# Management API
+ZITADEL_API_URL=https://your-instance.zitadel.cloud
+ZITADEL_SERVICE_USER_TOKEN=your-service-user-token
+ZITADEL_ORG_ID=your-org-id
+```
+
+## Complete Express.js Example
+
+```javascript
+const express = require('express');
+const { createUserServiceClient, makeReqCtx } = require('@zitadel/client/v2');
+const { createServerTransport } = require('@zitadel/client/node');
+const { expressjwt: jwt } = require('express-jwt');
+const jwksRsa = require('jwks-rsa');
+
+const app = express();
+app.use(express.json());
+
+// JWT middleware
+const checkJwt = jwt({
+  secret: jwksRsa.expressJwtSecret({
+    jwksUri: `${process.env.ZITADEL_DOMAIN}/oauth/v2/keys`
+  }),
+  audience: process.env.ZITADEL_CLIENT_ID,
+  issuer: process.env.ZITADEL_DOMAIN,
+  algorithms: ['RS256']
+});
+
+// Initialize ZITADEL client
+const transport = createServerTransport(
+  process.env.ZITADEL_SERVICE_USER_TOKEN,
+  { baseUrl: process.env.ZITADEL_API_URL }
+);
+const userService = createUserServiceClient(transport);
+
+// Routes
+app.get('/api/users', checkJwt, async (req, res) => {
+  try {
+    const users = await userService.listUsers(
+      { ctx: makeReqCtx(process.env.ZITADEL_ORG_ID) },
+      {}
+    );
+    res.json(users.result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/users', checkJwt, async (req, res) => {
+  try {
+    const user = await userService.addHumanUser({
+      ctx: makeReqCtx(process.env.ZITADEL_ORG_ID),
+      ...req.body
+    });
+    res.status(201).json(user);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.listen(3000, () => {
+  console.log('Server running on http://localhost:3000');
+});
+```
+
+## Resources
+
+- [Express.js Documentation](https://expressjs.com/)
+- [Passport.js Documentation](https://www.passportjs.org/)
+- [JavaScript SDK Documentation](/sdks/javascript)
+- [ZITADEL Node.js Client Library](https://github.com/zitadel/zitadel-node)
+
+## Next Steps
+
+- [Explore Python examples](/examples/python)
+- [Learn about JWT validation](/integration/oidc)
+- [Read API documentation](/api/overview)

@@ -1,0 +1,252 @@
+---
+title: Go SDK
+description: Integrate ZITADEL authentication into Go applications using the official Go SDK.
+---
+
+# Go SDK
+
+The ZITADEL Go SDK (`zitadel-go`) provides a comprehensive solution for integrating authentication, authorization, and resource management into Go applications.
+
+## Installation
+
+Install the SDK using go get:
+
+```bash
+go get github.com/zitadel/zitadel-go
+```
+
+## Features
+
+The Go SDK covers:
+
+- **Web Application Authentication**: Authenticate users with OIDC PKCE flow
+- **User Information**: Retrieve user data from the userinfo endpoint
+- **Token Management**: Automatic token refresh and validation
+- **Role-Based Access**: Check user roles and permissions
+- **API Security**: Secure your APIs with OAuth2 token introspection
+- **Resource Management**: Full access to ZITADEL Management APIs via gRPC clients
+- **Service Accounts**: Authenticate machine-to-machine communication
+
+## Quick Start
+
+### Web Application with Login
+
+```go
+package main
+
+import (
+    "context"
+    "log"
+    "net/http"
+    
+    "github.com/zitadel/zitadel-go/v3/pkg/client/zitadel"
+    "github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/middleware"
+)
+
+func main() {
+    // Create ZITADEL client
+    client, err := zitadel.NewClient(
+        zitadel.WithDomain("your-instance.zitadel.cloud"),
+        zitadel.WithClientID("your-client-id"),
+        zitadel.WithRedirectURI("http://localhost:8080/auth/callback"),
+    )
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Setup authentication middleware
+    mw := middleware.New(client)
+
+    // Public route
+    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+        w.Write([]byte("Welcome! <a href='/login'>Login</a>"))
+    })
+
+    // Login handler
+    http.HandleFunc("/login", client.AuthURLHandler())
+
+    // Callback handler
+    http.HandleFunc("/auth/callback", client.CallbackHandler())
+
+    // Protected route
+    http.Handle("/profile", mw.RequireAuthentication()(http.HandlerFunc(profileHandler)))
+
+    log.Println("Server starting on :8080")
+    log.Fatal(http.ListenAndServe(":8080", nil))
+}
+
+func profileHandler(w http.ResponseWriter, r *http.Request) {
+    user := middleware.GetUserInfo(r.Context())
+    w.Write([]byte("Hello, " + user.Name))
+}
+```
+
+### Get User Information
+
+```go
+func profileHandler(w http.ResponseWriter, r *http.Request) {
+    userInfo := middleware.GetUserInfo(r.Context())
+    
+    fmt.Fprintf(w, "User ID: %s\n", userInfo.Subject)
+    fmt.Fprintf(w, "Name: %s\n", userInfo.Name)
+    fmt.Fprintf(w, "Email: %s\n", userInfo.Email)
+    fmt.Fprintf(w, "Verified: %v\n", userInfo.EmailVerified)
+}
+```
+
+### Check User Roles
+
+```go
+func adminHandler(w http.ResponseWriter, r *http.Request) {
+    userInfo := middleware.GetUserInfo(r.Context())
+    
+    roles, ok := userInfo.Claims["urn:zitadel:iam:org:project:roles"].(map[string]interface{})
+    if !ok {
+        http.Error(w, "No roles found", http.StatusForbidden)
+        return
+    }
+    
+    if _, hasAdmin := roles["admin"]; hasAdmin {
+        w.Write([]byte("Welcome, administrator!"))
+    } else {
+        http.Error(w, "Admin access required", http.StatusForbidden)
+    }
+}
+```
+
+## Securing APIs
+
+### OAuth2 Token Introspection
+
+```go
+package main
+
+import (
+    "log"
+    "net/http"
+    
+    "github.com/zitadel/zitadel-go/v3/pkg/client/zitadel"
+    "github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/introspection"
+)
+
+func main() {
+    // Create introspection middleware
+    introspector, err := introspection.New(
+        "https://your-instance.zitadel.cloud",
+        "service-account-id",
+        "service-account-secret",
+    )
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Public endpoint
+    http.HandleFunc("/api/public", publicHandler)
+
+    // Protected endpoint
+    http.Handle("/api/private", introspector.CheckToken(http.HandlerFunc(privateHandler)))
+
+    log.Fatal(http.ListenAndServe(":8080", nil))
+}
+
+func privateHandler(w http.ResponseWriter, r *http.Request) {
+    w.Write([]byte("Access granted to authenticated user"))
+}
+
+func publicHandler(w http.ResponseWriter, r *http.Request) {
+    w.Write([]byte("Public endpoint - no authentication required"))
+}
+```
+
+## Using the Management API
+
+### Create a User
+
+```go
+package main
+
+import (
+    "context"
+    "log"
+    
+    "github.com/zitadel/zitadel-go/v3/pkg/client"
+    pb "github.com/zitadel/zitadel-go/v3/pkg/grpc/management"
+)
+
+func main() {
+    ctx := context.Background()
+    
+    // Create authenticated client
+    conn, err := client.NewClient(
+        "your-instance.zitadel.cloud",
+        client.WithServiceAccountKeyPath("./service-account-key.json"),
+    )
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer conn.Close()
+
+    // Create management service client
+    mgmtClient := pb.NewManagementServiceClient(conn)
+
+    // Add user
+    resp, err := mgmtClient.AddHumanUser(ctx, &pb.AddHumanUserRequest{
+        UserName: "alice@example.com",
+        Profile: &pb.AddHumanUserRequest_Profile{
+            FirstName: "Alice",
+            LastName:  "Smith",
+        },
+        Email: &pb.AddHumanUserRequest_Email{
+            Email:           "alice@example.com",
+            IsEmailVerified: false,
+        },
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    log.Printf("User created with ID: %s", resp.UserId)
+}
+```
+
+## Service Account Authentication
+
+Authenticate service accounts using private key JWT:
+
+```go
+import (
+    "github.com/zitadel/zitadel-go/v3/pkg/client"
+)
+
+conn, err := client.NewClient(
+    "your-instance.zitadel.cloud",
+    client.WithServiceAccountKeyPath("./service-account-key.json"),
+)
+if err != nil {
+    log.Fatal(err)
+}
+defer conn.Close()
+```
+
+## Logout
+
+Implement federated logout:
+
+```go
+http.HandleFunc("/logout", func(w http.ResponseWriter, r *http.Request) {
+    client.Logout(w, r, "http://localhost:8080")
+})
+```
+
+## Resources
+
+- [GitHub Repository](https://github.com/zitadel/zitadel-go)
+- [Example Applications](https://github.com/zitadel/zitadel-go/tree/main/example)
+- [ZITADEL OIDC Library](https://github.com/zitadel/oidc)
+- [Go Integration Guide](/examples/nodejs)
+
+## Next Steps
+
+- [Explore Go examples](/examples/nodejs)
+- [Learn about OIDC flows](/integration/oidc)
+- [Read the API documentation](/api/overview)

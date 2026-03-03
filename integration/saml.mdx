@@ -1,0 +1,461 @@
+---
+title: SAML 2.0 Integration
+description: Integrate enterprise applications with ZITADEL using SAML 2.0 for single sign-on and identity federation
+---
+
+Security Assertion Markup Language (SAML) is an XML-based standard for exchanging authentication and authorization data between identity providers and service providers. ZITADEL supports SAML 2.0, enabling integration with enterprise applications and legacy systems.
+
+## Why use SAML?
+
+SAML remains relevant for specific use cases:
+
+**Legacy systems compatibility**
+
+SAML has been in use since 2002 and is deeply integrated into many legacy systems and enterprise environments. Organizations with existing SAML infrastructure may prefer to continue using it to avoid costly and complex migrations.
+
+**Enterprise use cases**
+
+SAML is often favored in enterprise settings where detailed user attributes and complex authorization requirements are necessary. Its support for rich metadata and customizable assertions makes it suitable for intricate access control scenarios.
+
+**Mature ecosystem**
+
+The SAML ecosystem is mature, with extensive support from a wide range of enterprise applications and identity providers. This broad compatibility ensures that SAML can be used seamlessly across various platforms and services.
+
+## SAML Terminology
+
+Understanding SAML requires familiarity with these key terms:
+
+| Term | Description |
+|------|-------------|
+| **Service Provider (SP)** | The application the user is trying to sign into |
+| **Identity Provider (IdP)** | The centralized authentication service (ZITADEL) |
+| **SAML Request** | XML message from SP to IdP requesting authentication |
+| **SAML Response** | XML message from IdP to SP containing authentication assertions |
+| **Assertion** | Signed statement about the user within the SAML response |
+| **Assertion Consumer Service (ACS)** | SP endpoint that processes SAML responses |
+| **Attributes** | User profile information included in the SAML response |
+| **Relay State** | Parameter to maintain application state across authentication |
+| **SAML Trust** | Configuration establishing trust between IdP and SP |
+| **Metadata** | XML file containing configuration for IdP or SP |
+| **Entity ID** | Unique identifier for the IdP or SP (also called Issuer) |
+
+## SAML Authentication Flows
+
+ZITADEL supports SP-initiated SAML flows:
+
+### SP-Initiated Flow
+
+The user starts at the service provider, which sends a SAML request to ZITADEL.
+
+**Flow steps:**
+
+1. User attempts to access protected resource at SP
+2. SP generates SAML AuthnRequest
+3. SP redirects user to ZITADEL SSO endpoint with SAML request
+4. User authenticates at ZITADEL (if not already authenticated)
+5. ZITADEL generates SAML Response with assertions
+6. ZITADEL redirects user back to SP's ACS with SAML response
+7. SP validates SAML response and assertions
+8. SP grants access to user
+
+### IdP-Initiated Flow
+
+ZITADEL currently does not support IdP-initiated flows. All SAML authentications must be initiated from the service provider.
+
+## ZITADEL as SAML Identity Provider
+
+### SAML Metadata
+
+ZITADEL provides SAML metadata at:
+
+```
+https://${CUSTOM_DOMAIN}/saml/v2/metadata
+```
+
+This metadata contains:
+- Entity ID (Issuer)
+- SSO endpoint URL
+- Signing certificate
+- Supported bindings
+- Supported NameID formats
+
+**Example metadata request:**
+
+```bash
+curl -X GET "https://${CUSTOM_DOMAIN}/saml/v2/metadata"
+```
+
+### Certificate Endpoint
+
+Download ZITADEL's SAML signing certificate:
+
+```
+https://${CUSTOM_DOMAIN}/saml/v2/certificate
+```
+
+This certificate is used to verify the signature on SAML responses.
+
+### SSO Endpoint
+
+The Single Sign-On endpoint handles SAML authentication requests:
+
+```
+https://${CUSTOM_DOMAIN}/saml/v2/SSO
+```
+
+**Supported bindings:**
+- `urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect`
+- `urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST`
+
+## SAML Request Format
+
+A SAML AuthnRequest contains:
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<samlp:AuthnRequest
+  xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
+  ID="_8LjuzBEUQFYFWjL55"
+  Version="2.0"
+  IssueInstant="2024-06-11T04:13:52Z"
+  Destination="https://${CUSTOM_DOMAIN}/saml/v2/SSO"
+  AssertionConsumerServiceURL="https://yourapp.example.com/acs">
+  <saml:Issuer
+    xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">
+    https://yourapp.example.com/metadata
+  </saml:Issuer>
+  <!-- Signature element -->
+</samlp:AuthnRequest>
+```
+
+**Key elements:**
+
+| Element | Description |
+|---------|-------------|
+| `ID` | Unique identifier for this request |
+| `IssueInstant` | Timestamp when request was created |
+| `Destination` | ZITADEL's SSO endpoint |
+| `AssertionConsumerServiceURL` | Where ZITADEL should send the response |
+| `Issuer` | Service provider's entity ID |
+| `Signature` | Digital signature of the request (optional) |
+
+### HTTP-Redirect Binding
+
+With HTTP-Redirect binding, the SAML request is base64-encoded and sent as a URL parameter:
+
+```http
+GET /saml/v2/SSO?
+  SAMLRequest=PHNhbWxwOkF1dGhuUmVxdWVzdC4uLg%3D%3D&
+  RelayState=af0ifjsldkj&
+  SigAlg=http%3A%2F%2Fwww.w3.org%2F2000%2F09%2Fxmldsig%23rsa-sha1&
+  Signature=Base64EncodedSignature
+```
+
+### HTTP-POST Binding
+
+With HTTP-POST binding, the SAML request is sent in the request body:
+
+```html
+<form method="post" action="https://${CUSTOM_DOMAIN}/saml/v2/SSO">
+  <input type="hidden" name="SAMLRequest" value="Base64EncodedRequest" />
+  <input type="hidden" name="RelayState" value="StateValue" />
+  <input type="submit" value="Continue" />
+</form>
+```
+
+## SAML Response Format
+
+ZITADEL returns a SAML Response containing user assertions:
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<samlp:Response
+  xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
+  ID="_164ba12b-6711-40e0-8ddb-55aa810f1c92"
+  InResponseTo="_8LjuzBEUQFYFWjL55"
+  Version="2.0"
+  IssueInstant="2024-06-11T04:17:41Z"
+  Destination="https://yourapp.example.com/acs">
+  <saml:Issuer
+    xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">
+    https://${CUSTOM_DOMAIN}/saml/v2/metadata
+  </saml:Issuer>
+  <samlp:Status>
+    <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
+  </samlp:Status>
+  <saml:Assertion
+    xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
+    Version="2.0"
+    ID="_6fbdb616-b77f-46af-9554-989c8b89eeda"
+    IssueInstant="2024-06-11T04:17:41Z">
+    <saml:Issuer>https://${CUSTOM_DOMAIN}/saml/v2/metadata</saml:Issuer>
+    <!-- Signature element -->
+    <saml:Subject>
+      <saml:NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">
+        user@example.com
+      </saml:NameID>
+      <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+        <saml:SubjectConfirmationData
+          NotOnOrAfter="2024-06-11T04:22:41Z"
+          Recipient="https://yourapp.example.com/acs"
+          InResponseTo="_8LjuzBEUQFYFWjL55"/>
+      </saml:SubjectConfirmation>
+    </saml:Subject>
+    <saml:Conditions
+      NotBefore="2024-06-11T04:17:41Z"
+      NotOnOrAfter="2024-06-11T04:22:41Z">
+      <saml:AudienceRestriction>
+        <saml:Audience>https://yourapp.example.com/metadata</saml:Audience>
+      </saml:AudienceRestriction>
+    </saml:Conditions>
+    <saml:AuthnStatement
+      AuthnInstant="2024-06-11T04:17:41Z"
+      SessionIndex="_6fbdb616-b77f-46af-9554-989c8b89eeda">
+      <saml:AuthnContext>
+        <saml:AuthnContextClassRef>
+          urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport
+        </saml:AuthnContextClassRef>
+      </saml:AuthnContext>
+    </saml:AuthnStatement>
+    <saml:AttributeStatement>
+      <saml:Attribute Name="Email">
+        <saml:AttributeValue>user@example.com</saml:AttributeValue>
+      </saml:Attribute>
+      <saml:Attribute Name="FirstName">
+        <saml:AttributeValue>John</saml:AttributeValue>
+      </saml:Attribute>
+      <saml:Attribute Name="SurName">
+        <saml:AttributeValue>Doe</saml:AttributeValue>
+      </saml:Attribute>
+      <saml:Attribute Name="UserID">
+        <saml:AttributeValue>260242264868201995</saml:AttributeValue>
+      </saml:Attribute>
+    </saml:AttributeStatement>
+  </saml:Assertion>
+</samlp:Response>
+```
+
+**Key elements:**
+
+| Element | Description |
+|---------|-------------|
+| `InResponseTo` | ID of the SAML request being responded to |
+| `Status` | Success or error status |
+| `Assertion` | Signed statement about the authenticated user |
+| `Subject` | User identifier (NameID) |
+| `Conditions` | Time window and audience restrictions |
+| `AuthnStatement` | Authentication method and time |
+| `AttributeStatement` | User attributes (profile data) |
+
+## Standard Attributes
+
+ZITADEL includes these standard attributes in SAML responses:
+
+| Attribute Name | Description | Example |
+|----------------|-------------|----------|
+| `UserID` | ZITADEL user ID | `260242264868201995` |
+| `UserName` | Username | `john.doe@example.com` |
+| `Email` | Email address | `john.doe@example.com` |
+| `FirstName` | Given name | `John` |
+| `SurName` | Family name | `Doe` |
+| `FullName` | Complete name | `John Doe` |
+
+## Custom Attributes
+
+You can add custom attributes to SAML responses using ZITADEL Actions:
+
+```javascript
+// Action to add custom SAML attributes
+function addCustomAttributes(ctx, api) {
+  api.v1.claims.setClaim('Department', ctx.user.metadata.department);
+  api.v1.claims.setClaim('EmployeeID', ctx.user.metadata.employeeId);
+  api.v1.claims.setClaim('Roles', ctx.user.grants.map(g => g.roles).flat());
+}
+```
+
+See [Customize SAML Response](/apis/actions/customize-samlresponse) for more details on using Actions with SAML.
+
+## Configuring a SAML Application
+
+<Tabs groupId="config-method">
+<TabItem value="console" label="Console">
+
+1. Navigate to your project in ZITADEL Console
+2. Click "New" under Applications
+3. Select "SAML" application type
+4. Configure the following:
+   - **Name**: Your application name
+   - **Metadata**: Upload SP metadata XML or provide metadata URL
+5. Save the configuration
+6. Download ZITADEL's metadata for your SP configuration
+
+</TabItem>
+<TabItem value="api" label="API">
+
+**Create SAML app with metadata XML:**
+
+```bash
+curl -X POST "https://${CUSTOM_DOMAIN}/management/v1/projects/${PROJECT_ID}/apps/saml" \
+  -H "Authorization: Bearer ${PAT}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My SAML App",
+    "metadataXml": "<Base64EncodedMetadataXML>"
+  }'
+```
+
+**Create SAML app with metadata URL:**
+
+```bash
+curl -X POST "https://${CUSTOM_DOMAIN}/management/v1/projects/${PROJECT_ID}/apps/saml" \
+  -H "Authorization: Bearer ${PAT}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My SAML App",
+    "metadataUrl": "https://yourapp.example.com/saml/metadata"
+  }'
+```
+
+</TabItem>
+</Tabs>
+
+## SAML Identity Brokering
+
+ZITADEL can act as both an identity provider and integrate with external SAML identity providers for identity brokering:
+
+**How it works:**
+
+1. User attempts to access a service (SP) protected by ZITADEL
+2. ZITADEL redirects user to external SAML IdP for authentication
+3. User authenticates with external SAML IdP
+4. External IdP returns SAML assertion to ZITADEL
+5. ZITADEL processes the assertion and creates its own SAML assertion
+6. ZITADEL sends final SAML assertion to the service provider
+7. User gains access to the service
+
+This enables organizations to integrate ZITADEL with existing identity providers while providing SAML SSO to applications.
+
+## Validating SAML Responses
+
+Service providers must validate SAML responses to ensure security:
+
+### Signature Validation
+
+1. Extract the signature from the SAML response or assertion
+2. Obtain ZITADEL's public key from the metadata or certificate endpoint
+3. Verify the XML signature using the public key
+4. Ensure the signature covers the entire assertion
+
+### Assertion Validation
+
+Validate these elements in the SAML assertion:
+
+| Element | Validation |
+|---------|------------|
+| `Issuer` | Must match ZITADEL's entity ID |
+| `InResponseTo` | Must match the original request ID |
+| `Recipient` | Must match your ACS URL |
+| `Audience` | Must match your entity ID |
+| `NotBefore` | Current time must be after this timestamp |
+| `NotOnOrAfter` | Current time must be before this timestamp |
+| `SubjectConfirmation` | Must be `bearer` method |
+
+### Status Code Validation
+
+Check the status code in the SAML response:
+
+```xml
+<samlp:Status>
+  <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
+</samlp:Status>
+```
+
+Only process assertions if the status is `Success`.
+
+## Security Best Practices
+
+1. **Always validate signatures**: Verify XML signatures on SAML responses and assertions
+2. **Use canonicalized XML**: Normalize XML before signature verification to prevent manipulation
+3. **Validate XML schema**: Ensure only expected XML formats are accepted
+4. **Enforce time windows**: Respect `NotBefore` and `NotOnOrAfter` conditions
+5. **Validate all parties**: Check Issuer, Recipient, and Audience values
+6. **Prevent replay attacks**: Track processed assertion IDs and reject duplicates
+7. **Use HTTPS exclusively**: Never exchange SAML messages over unencrypted connections
+8. **Limit XML parser features**: Disable external entity resolution to prevent XXE attacks
+9. **Validate metadata**: Verify metadata sources before importing
+10. **Monitor for anomalies**: Track authentication patterns and alert on suspicious activity
+
+## Troubleshooting
+
+### Common Issues
+
+**Signature validation fails**
+- Ensure you're using ZITADEL's current signing certificate
+- Verify the certificate hasn't expired
+- Check that XML canonicalization is correct
+
+**Audience restriction error**
+- Verify your SP's entity ID matches the Audience value
+- Check for case sensitivity and trailing slashes
+
+**Assertion expired**
+- Check server time synchronization (NTP)
+- Verify time zone settings
+- Consider clock skew tolerance in your SP configuration
+
+**Invalid destination**
+- Ensure the ACS URL in the request matches your registered ACS URL
+- Check for HTTP vs HTTPS mismatches
+
+**Metadata import fails**
+- Validate XML syntax
+- Ensure metadata conforms to SAML 2.0 specification
+- Check that required elements are present
+
+## Testing SAML Integration
+
+### Using ZITADEL as IdP
+
+1. Create a SAML application in ZITADEL
+2. Configure your service provider with ZITADEL's metadata
+3. Create test users in ZITADEL
+4. Initiate authentication from the service provider
+5. Verify successful authentication and attribute mapping
+
+### Example Service Provider Setup
+
+See the [ZITADEL Python SAML SP example](https://github.com/zitadel/python-saml-sp) for a reference implementation.
+
+### Browser Tools
+
+Use browser extensions to inspect SAML messages:
+- SAML-tracer (Firefox/Chrome)
+- SAML Chrome Panel
+
+These tools decode and display SAML requests and responses for debugging.
+
+## When to Use SAML vs OIDC
+
+**Use SAML when:**
+- Integrating with enterprise applications that require SAML
+- Working with legacy systems built before OIDC adoption
+- Organization policy mandates SAML
+- Need for complex attribute statements and authorization decisions
+
+**Use OIDC when:**
+- Building new applications
+- Developing mobile or single-page applications
+- Prefer JSON over XML
+- Want simpler implementation and debugging
+- Need modern features like PKCE and dynamic client registration
+
+OIDC is generally recommended for new implementations. Use SAML when required by existing infrastructure or application requirements.
+
+## Resources
+
+- [SAML 2.0 Core Specification](https://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf)
+- [SAML 2.0 Bindings](https://docs.oasis-open.org/security/saml/v2.0/saml-bindings-2.0-os.pdf)
+- [SAML 2.0 Metadata](https://docs.oasis-open.org/security/saml/v2.0/saml-metadata-2.0-os.pdf)
+- [ZITADEL SAML Endpoints](/apis/saml/endpoints)
+- [ZITADEL SAML Integration Guide](/guides/integrate/login/saml)
+- [Identity Provider Integration](/guides/integrate/identity-providers/introduction)

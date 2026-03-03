@@ -1,0 +1,363 @@
+---
+title: 'Multi-Tenancy'
+description: 'Understand ZITADEL''s hierarchical multi-tenancy model and how it enables secure isolation for B2B and B2C applications'
+---
+
+## Overview
+
+ZITADEL implements a **strict hierarchical containment model** for multi-tenancy. This design enables complete data isolation, flexible permission scoping, and scalable B2B/B2C architectures.
+
+The hierarchy follows this structure:
+
+```
+System (Installation)
+  └── Instance (Identity System / Tenant)
+       └── Organization
+            └── Project
+                 └── Application
+```
+
+## The Hierarchy Explained
+
+### System (Installation)
+
+The **System** represents the entire ZITADEL deployment.
+
+- **Scope**: All instances in a single installation
+- **Configuration**: Runtime configuration files and environment variables (see `cmd/defaults.yaml`)
+- **Management**: System users manage instances via the System API
+- **Use case**: Self-hosted installations or ZITADEL Cloud infrastructure
+
+<Note>
+In ZITADEL Cloud, you don't interact with the System level. Each customer gets one or more Instances.
+</Note>
+
+### Instance (The "Identity System")
+
+An **Instance** is a logical partition or virtual tenant — a "System inside a System."
+
+<Warning>
+**Critical Translation Rule**: When translating ZITADEL documentation or UI:
+
+- **NEVER** translate "Instance" as "Example", "Case", "Sample", or similar terms
+- **ALWAYS** use technical terms: "Tenant", "Environment", or the local equivalent of "Logical System Entity"
+- **Context**: Instance always refers to infrastructure/tenancy, not examples
+
+For example:
+- Chinese (Simplified): 实例 (Shílì) — **NOT** 例子 (Lìzi)
+- Japanese: インスタンス (Insutansu) — **NOT** 例 (Rei)
+- German: Instanz — **NOT** Beispiel
+</Warning>
+
+#### Instance Characteristics
+
+- **Complete isolation**: Data and settings are strictly isolated between instances
+- **Separate policies**: Each instance has its own password complexity, login behavior, and identity providers
+- **Independent users**: User IDs are scoped to an instance
+- **Custom domain**: Each instance can have a custom domain (e.g., `auth.yourcompany.com`)
+- **Instance-level settings**: Branding, email templates, and audit log configuration
+
+#### When to Use Multiple Instances
+
+<Accordion title="Staging vs Production">
+Create separate instances for different environments:
+- `production.zitadel.cloud` for live users
+- `staging.zitadel.cloud` for testing
+- `dev.zitadel.cloud` for development
+
+Each instance has completely isolated data and configuration.
+</Accordion>
+
+<Accordion title="Geographic Isolation">
+Deploy instances in different regions:
+- EU instance for European customers
+- US instance for American customers
+- Ensures data residency compliance
+</Accordion>
+
+<Accordion title="Customer Isolation (B2B)">
+For very large enterprise customers who require:
+- Dedicated infrastructure
+- Custom compliance requirements
+- Complete data isolation from other customers
+</Accordion>
+
+### Organization
+
+An **Organization** is a group within an Instance.
+
+- **Ownership**: Organizations own Users, Projects, and Roles
+- **Typical mapping**: One organization per customer/company in a B2B SaaS
+- **Self-service**: End customers can manage their own organization
+- **Unlimited**: An instance can contain unlimited organizations
+
+#### Organization Use Cases
+
+**B2B SaaS Application**:
+```
+Your SaaS Instance
+  ├── Customer A (Organization)
+  │    ├── User: alice@customer-a.com
+  │    ├── User: bob@customer-a.com
+  │    └── Project: Your SaaS App
+  │         └── Roles: Admin, Member, Viewer
+  │
+  └── Customer B (Organization)
+       ├── User: charlie@customer-b.com
+       └── Project: Your SaaS App
+            └── Roles: Admin, Member, Viewer
+```
+
+**B2C Application**:
+```
+Your App Instance
+  └── Default Organization
+       ├── User: alice@gmail.com
+       ├── User: bob@outlook.com
+       └── Project: Your Consumer App
+            └── Roles: Premium, Free
+```
+
+#### Organization Management
+
+- **Organization Admins**: Can manage users and access within their organization
+- **Delegated role management**: Organizations can manage their own users' roles
+- **Custom branding**: Each organization can have custom login branding
+- **Domain discovery**: Route users to the correct organization based on email domain
+
+### Project
+
+A **Project** is a collection of Applications and Authorization policies within an Organization.
+
+- **Purpose**: Group related applications that share users and permissions
+- **RBAC**: Roles are defined at the project level
+- **Grants**: Projects can be granted to other organizations (useful for B2B)
+
+#### Project Structure
+
+```
+Project: "Acme SaaS Platform"
+  ├── Applications
+  │    ├── Web App (OIDC)
+  │    ├── Mobile App (OIDC)
+  │    └── API (API authentication)
+  │
+  ├── Roles
+  │    ├── Admin
+  │    ├── Member
+  │    └── Viewer
+  │
+  └── Authorization Grants
+       └── Granted to: Partner Organization
+            └── Roles: Viewer
+```
+
+### Application
+
+An **Application** represents a client that authenticates users.
+
+- **Protocols**: OIDC, SAML, API (for machine-to-machine)
+- **Configuration**: Client ID, secrets, redirect URIs, token settings
+- **Scoped to**: A single project
+
+## Permission Scoping
+
+ZITADEL's hierarchy enables precise permission scoping:
+
+### Administrative Contexts
+
+<Tabs>
+  <Tab title="System User">
+    **Scope**: Entire installation
+    
+    **Capabilities**:
+    - Create and manage instances
+    - System-wide configuration
+    - Infrastructure monitoring
+    
+    **API**: System API endpoints
+  </Tab>
+  
+  <Tab title="Instance Admin">
+    **Scope**: Single instance
+    
+    **Capabilities**:
+    - Manage instance-wide policies (password complexity, login behavior)
+    - Configure identity providers
+    - Create and manage organizations
+    - View audit logs across all organizations
+    
+    **API**: Instance-level admin endpoints
+  </Tab>
+  
+  <Tab title="Organization Admin">
+    **Scope**: Single organization
+    
+    **Capabilities**:
+    - Manage users within the organization
+    - Manage projects and applications
+    - Assign roles to users
+    - Configure organization branding
+    
+    **API**: Organization-scoped management endpoints
+  </Tab>
+  
+  <Tab title="Project Admin">
+    **Scope**: Single project
+    
+    **Capabilities**:
+    - Manage applications in the project
+    - Define and modify roles
+    - Grant project access to other organizations
+    
+    **API**: Project management endpoints
+  </Tab>
+</Tabs>
+
+### API Context Requirements
+
+When creating resources via the API, context is provided as explicit fields:
+
+```protobuf V2 API Example
+message CreateUserRequest {
+  // Context: Which organization should own this user?
+  string organization_id = 1;
+  
+  // User details
+  string username = 2;
+  // ...
+}
+```
+
+<Note>
+Context fields are **only required when creating** resources. When retrieving or updating by ID, the context is implicit because the ID is globally unique.
+</Note>
+
+## Multi-Tenancy Patterns
+
+### Pattern 1: Single Instance, Multiple Organizations (Most Common)
+
+**When to use**:
+- B2B SaaS with multiple customers
+- Each customer needs isolated users and data
+- Shared authentication policies across customers
+
+**Architecture**:
+```
+Your Instance (yourapp.zitadel.cloud)
+  ├── Organization: Customer A
+  ├── Organization: Customer B
+  └── Organization: Customer C
+```
+
+**Benefits**:
+- Cost-effective (single database)
+- Easy to manage and update
+- Customers can self-manage users
+
+### Pattern 2: Multiple Instances (Enterprise Isolation)
+
+**When to use**:
+- Large enterprise customers requiring dedicated infrastructure
+- Different compliance requirements per customer
+- Custom domains per customer
+
+**Architecture**:
+```
+Customer A Instance (customera.example.com)
+  └── Customer A Organization(s)
+
+Customer B Instance (customerb.example.com)
+  └── Customer B Organization(s)
+```
+
+**Benefits**:
+- Complete infrastructure isolation
+- Custom compliance and security policies
+- Dedicated performance characteristics
+
+### Pattern 3: Hybrid (Instance per Environment + Organizations)
+
+**When to use**:
+- Development, staging, and production separation
+- B2B SaaS with multiple customers per environment
+
+**Architecture**:
+```
+Production Instance
+  ├── Organization: Customer A
+  └── Organization: Customer B
+
+Staging Instance
+  ├── Organization: Test Customer A
+  └── Organization: Test Customer B
+```
+
+## Data Isolation Guarantees
+
+### Instance-Level Isolation
+
+- **Database queries**: All queries automatically include instance ID filter
+- **No cross-instance access**: Instance A cannot query data from Instance B
+- **Audit separation**: Event logs are instance-scoped
+- **Cache isolation**: In-memory caches are keyed by instance
+
+### Organization-Level Isolation
+
+- **User ownership**: Users belong to exactly one organization
+- **Project ownership**: Projects belong to exactly one organization (but can be granted to others)
+- **Role assignments**: Scoped to organization context
+- **Audit attribution**: Events track the organization context
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Choosing Between Instances and Organizations">
+    **Use Organizations when**:
+    - Customers share common authentication policies
+    - Cost efficiency is important
+    - Customers are of similar size/importance
+    
+    **Use separate Instances when**:
+    - Complete infrastructure isolation required
+    - Different compliance/security requirements
+    - Custom domains per customer
+    - Very large enterprise customers
+  </Accordion>
+  
+  <Accordion title="Organization Naming">
+    - Use meaningful names (company name, domain)
+    - Avoid exposing internal IDs to end users
+    - Consider domain-based discovery for login routing
+  </Accordion>
+  
+  <Accordion title="Project Structure">
+    - One project per logical application/product
+    - Group related apps (web, mobile, API) in the same project
+    - Use project grants sparingly (adds complexity)
+  </Accordion>
+  
+  <Accordion title="Permission Design">
+    - Follow least privilege principle
+    - Use organization admins for customer self-service
+    - Reserve instance admin for platform operators
+    - Document required permissions in API calls
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Architecture" icon="diagram-project" href="/concepts/architecture">
+    Understand the technical architecture behind the multi-tenancy model
+  </Card>
+  <Card title="Authorization" icon="shield-check" href="/concepts/authorization">
+    Learn how roles and permissions work within the hierarchy
+  </Card>
+  <Card title="Organizations Guide" icon="building" href="/user-management/organizations">
+    Create and manage organizations in your instance
+  </Card>
+  <Card title="Projects Guide" icon="folder-tree" href="/user-management/projects">
+    Set up projects and applications for your users
+  </Card>
+</CardGroup>

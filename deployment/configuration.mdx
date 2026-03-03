@@ -1,0 +1,521 @@
+---
+title: Configuration Reference
+description: Complete reference for ZITADEL environment variables and configuration options
+---
+
+ZITADEL can be configured using environment variables or a YAML configuration file. All configuration keys can be set via environment variables using the `ZITADEL_` prefix.
+
+## Core Configuration
+
+### External Access
+
+These settings define how ZITADEL is accessed externally.
+
+<Note>
+`ExternalDomain`, `ExternalPort`, and `ExternalSecure` must exactly match the URL users access. Mismatches cause "Instance not found" errors.
+</Note>
+
+```bash
+# Domain name for external access
+ZITADEL_EXTERNALDOMAIN=localhost
+
+# External port (typically 80, 443, or 8080)
+ZITADEL_EXTERNALPORT=8080
+
+# Whether external access uses HTTPS
+ZITADEL_EXTERNALSECURE=false
+
+# Internal port ZITADEL listens on
+ZITADEL_PORT=8080
+```
+
+### TLS Configuration
+
+Configure TLS for the ZITADEL backend (typically disabled when using a reverse proxy).
+
+```bash
+# Enable TLS on ZITADEL backend
+ZITADEL_TLS_ENABLED=false
+
+# Path to TLS certificate
+ZITADEL_TLS_CERTPATH=/path/to/cert.pem
+
+# Path to TLS private key
+ZITADEL_TLS_KEYPATH=/path/to/key.pem
+
+# Or provide as base64-encoded PEM
+ZITADEL_TLS_CERT=<base64-encoded-cert>
+ZITADEL_TLS_KEY=<base64-encoded-key>
+```
+
+### Master Key
+
+The masterkey encrypts sensitive data in the database.
+
+<Warning>
+The masterkey must be exactly 32 characters. Never commit it to version control. Losing the masterkey makes encrypted data unrecoverable.
+</Warning>
+
+```bash
+# Generate a secure masterkey (exactly 32 characters)
+tr -dc A-Za-z0-9 </dev/urandom | head -c 32
+
+# Provide via command line or environment
+# Docker Compose:
+zitadel start-from-init --masterkey "${ZITADEL_MASTERKEY}"
+
+# Kubernetes: store in secret
+kubectl create secret generic zitadel-masterkey \
+  --from-literal=masterkey="$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32)"
+```
+
+## Database Configuration
+
+### PostgreSQL
+
+```bash
+# Database host
+ZITADEL_DATABASE_POSTGRES_HOST=localhost
+
+# Database port
+ZITADEL_DATABASE_POSTGRES_PORT=5432
+
+# Database name
+ZITADEL_DATABASE_POSTGRES_DATABASE=zitadel
+
+# Application user credentials
+ZITADEL_DATABASE_POSTGRES_USER_USERNAME=zitadel
+ZITADEL_DATABASE_POSTGRES_USER_PASSWORD=zitadel
+ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE=disable
+
+# Admin user credentials (for migrations)
+ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME=postgres
+ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD=postgres
+ZITADEL_DATABASE_POSTGRES_ADMIN_SSL_MODE=disable
+
+# Connection pool settings
+ZITADEL_DATABASE_POSTGRES_MAXOPENCONNS=10
+ZITADEL_DATABASE_POSTGRES_MAXIDLECONNS=5
+ZITADEL_DATABASE_POSTGRES_MAXCONNLIFETIME=30m
+ZITADEL_DATABASE_POSTGRES_MAXCONNIDLETIME=5m
+
+# Additional connection options
+ZITADEL_DATABASE_POSTGRES_OPTIONS=""
+```
+
+### SSL Mode Options
+
+- `disable`: No SSL (development only)
+- `require`: SSL required, no certificate verification
+- `verify-ca`: SSL required, verify CA certificate
+- `verify-full`: SSL required, verify hostname and CA
+
+### SSL Certificates
+
+```bash
+# Provide SSL certificates as paths
+ZITADEL_DATABASE_POSTGRES_USER_SSL_ROOTCERT=/path/to/ca.pem
+ZITADEL_DATABASE_POSTGRES_USER_SSL_CERT=/path/to/client-cert.pem
+ZITADEL_DATABASE_POSTGRES_USER_SSL_KEY=/path/to/client-key.pem
+
+# Or as inline PEM content
+ZITADEL_DATABASE_POSTGRES_USER_SSL_ROOTCERT="-----BEGIN CERTIFICATE-----\n..."
+```
+
+## Caching
+
+ZITADEL supports multiple cache connectors.
+
+### Memory Cache
+
+```bash
+# Enable memory cache (single instance only)
+ZITADEL_CACHES_CONNECTORS_MEMORY_ENABLED=true
+ZITADEL_CACHES_CONNECTORS_MEMORY_AUTOPRUNE_INTERVAL=1m
+ZITADEL_CACHES_CONNECTORS_MEMORY_AUTOPRUNE_TIMEOUT=5s
+```
+
+### PostgreSQL Cache
+
+```bash
+# Uses configured database (enabled by default)
+ZITADEL_CACHES_CONNECTORS_POSTGRES_ENABLED=true
+ZITADEL_CACHES_CONNECTORS_POSTGRES_AUTOPRUNE_INTERVAL=15m
+ZITADEL_CACHES_CONNECTORS_POSTGRES_AUTOPRUNE_TIMEOUT=30s
+```
+
+### Redis Cache
+
+```bash
+# Enable Redis cache (recommended for multi-instance)
+ZITADEL_CACHES_CONNECTORS_REDIS_ENABLED=true
+ZITADEL_CACHES_CONNECTORS_REDIS_ADDR=redis:6379
+ZITADEL_CACHES_CONNECTORS_REDIS_USERNAME=""
+ZITADEL_CACHES_CONNECTORS_REDIS_PASSWORD=""
+
+# Connection settings
+ZITADEL_CACHES_CONNECTORS_REDIS_DIALTIMEOUT=1s
+ZITADEL_CACHES_CONNECTORS_REDIS_READTIMEOUT=100ms
+ZITADEL_CACHES_CONNECTORS_REDIS_WRITETIMEOUT=100ms
+ZITADEL_CACHES_CONNECTORS_REDIS_POOLSIZE=20
+ZITADEL_CACHES_CONNECTORS_REDIS_MINIDLE=5
+ZITADEL_CACHES_CONNECTORS_REDIS_MAXIDLE=10
+
+# TLS
+ZITADEL_CACHES_CONNECTORS_REDIS_ENABLETLS=false
+
+# Database offset (for shared Redis instances)
+ZITADEL_CACHES_CONNECTORS_REDIS_DBOFFSET=10
+```
+
+### Cache Assignment
+
+```bash
+# Assign caches to connectors (memory, postgres, or redis)
+ZITADEL_CACHES_INSTANCE_CONNECTOR=redis
+ZITADEL_CACHES_MILESTONES_CONNECTOR=redis
+ZITADEL_CACHES_ORGANIZATION_CONNECTOR=redis
+```
+
+## Observability
+
+### Structured Logging
+
+```bash
+# Log level: DEBUG, INFO, WARN, ERROR
+ZITADEL_INSTRUMENTATION_LOG_LEVEL=INFO
+
+# Log format: disabled, text, json, gcp, gcp_error_reporting
+ZITADEL_INSTRUMENTATION_LOG_STDERR=json
+
+# Add source file/line to logs
+ZITADEL_INSTRUMENTATION_LOG_ADDSOURCE=true
+
+# Log streams (comma-separated)
+ZITADEL_INSTRUMENTATION_LOG_STREAMS=runtime,request,event_handler,queue
+
+# Error reporting
+ZITADEL_INSTRUMENTATION_LOG_ERRORS_REPORTLOCATION=true
+ZITADEL_INSTRUMENTATION_LOG_ERRORS_STACKTRACE=false
+```
+
+### Tracing
+
+```bash
+# Service name for traces
+ZITADEL_INSTRUMENTATION_SERVICENAME=zitadel
+
+# Trace sampling fraction (0.0 to 1.0)
+ZITADEL_INSTRUMENTATION_TRACE_FRACTION=1.0
+
+# Trust incoming trace context
+ZITADEL_INSTRUMENTATION_TRACE_TRUSTREMOTESPANS=false
+
+# Exporter type: none, stdOut, stdErr, grpc, http, google
+ZITADEL_INSTRUMENTATION_TRACE_EXPORTER_TYPE=grpc
+
+# OTEL collector endpoint
+ZITADEL_INSTRUMENTATION_TRACE_EXPORTER_ENDPOINT=otel-collector:4317
+ZITADEL_INSTRUMENTATION_TRACE_EXPORTER_INSECURE=true
+ZITADEL_INSTRUMENTATION_TRACE_EXPORTER_BATCHDURATION=1s
+
+# Google Cloud Trace
+ZITADEL_INSTRUMENTATION_TRACE_EXPORTER_GOOGLEPROJECTID=my-project
+```
+
+### Metrics
+
+```bash
+# Exporter type: none, stdOut, stdErr, grpc, http, google, prometheus
+ZITADEL_INSTRUMENTATION_METRIC_EXPORTER_TYPE=prometheus
+
+# OTEL collector endpoint
+ZITADEL_INSTRUMENTATION_METRIC_EXPORTER_ENDPOINT=otel-collector:4317
+ZITADEL_INSTRUMENTATION_METRIC_EXPORTER_INSECURE=true
+ZITADEL_INSTRUMENTATION_METRIC_EXPORTER_BATCHDURATION=1m
+```
+
+### Access Logs
+
+```bash
+# Enable access logs to stdout
+ZITADEL_LOGSTORE_ACCESS_STDOUT_ENABLED=true
+
+# Enable execution logs to stdout
+ZITADEL_LOGSTORE_EXECUTION_STDOUT_ENABLED=true
+```
+
+## OIDC Configuration
+
+### Token Lifetimes
+
+```bash
+# Access token lifetime
+ZITADEL_OIDC_DEFAULTACCESSTOKENLIFETIME=12h
+
+# ID token lifetime
+ZITADEL_OIDC_DEFAULTIDTOKENLIFETIME=12h
+
+# Refresh token idle expiration (30 days)
+ZITADEL_OIDC_DEFAULTREFRESHTOKENIDLEEXPIRATION=720h
+
+# Refresh token absolute expiration (90 days)
+ZITADEL_OIDC_DEFAULTREFRESHTOKENEXPIRATION=2160h
+```
+
+### OIDC Features
+
+```bash
+# Enable PKCE S256 code challenge method
+ZITADEL_OIDC_CODEMETHODS256=true
+
+# Enable client_secret_post authentication
+ZITADEL_OIDC_AUTHMETHODPOST=true
+
+# Enable private_key_jwt authentication
+ZITADEL_OIDC_AUTHMETHODPRIVATEKEYJWT=true
+
+# Enable refresh token grant
+ZITADEL_OIDC_GRANTTYPEREFRESHTOKEN=true
+
+# Enable request object support
+ZITADEL_OIDC_REQUESTOBJECTSUPPORTED=true
+```
+
+### Custom Endpoints
+
+```bash
+# Override default OIDC endpoint paths
+ZITADEL_OIDC_CUSTOMENDPOINTS_AUTH_PATH=/oauth/v2/authorize
+ZITADEL_OIDC_CUSTOMENDPOINTS_TOKEN_PATH=/oauth/v2/token
+ZITADEL_OIDC_CUSTOMENDPOINTS_INTROSPECTION_PATH=/oauth/v2/introspect
+ZITADEL_OIDC_CUSTOMENDPOINTS_USERINFO_PATH=/oidc/v1/userinfo
+ZITADEL_OIDC_CUSTOMENDPOINTS_REVOCATION_PATH=/oauth/v2/revoke
+ZITADEL_OIDC_CUSTOMENDPOINTS_ENDSESSION_PATH=/oidc/v1/end_session
+ZITADEL_OIDC_CUSTOMENDPOINTS_KEYS_PATH=/oauth/v2/keys
+```
+
+### Login UI URLs
+
+```bash
+# Login UI paths (for v2 login)
+ZITADEL_OIDC_DEFAULTLOGINURLV2=/ui/v2/login/login?authRequest=
+ZITADEL_OIDC_DEFAULTLOGOUTURLV2=/ui/v2/login/logout?post_logout_redirect=
+```
+
+## Projections
+
+Projections process events and update read models.
+
+```bash
+# Transaction duration before committing
+ZITADEL_PROJECTIONS_TRANSACTIONDURATION=1m
+
+# Interval between projection runs
+ZITADEL_PROJECTIONS_REQUEUEEVERY=60s
+
+# Retry delay after failed projection
+ZITADEL_PROJECTIONS_RETRYFAILEDAFTER=1s
+
+# Max failures before skipping
+ZITADEL_PROJECTIONS_MAXFAILURECOUNT=5
+
+# Events fetched per query
+ZITADEL_PROJECTIONS_BULKLIMIT=200
+
+# Max concurrent projection triggers
+ZITADEL_PROJECTIONS_MAXPARALLELTRIGGERS=0
+```
+
+### Custom Projection Settings
+
+```bash
+# Notifications projection
+ZITADEL_PROJECTIONS_CUSTOMIZATIONS_NOTIFICATIONS_MAXFAILURECOUNT=10
+
+# Password complexities
+ZITADEL_PROJECTIONS_CUSTOMIZATIONS_PASSWORD_COMPLEXITIES_TRANSACTIONDURATION=2s
+
+# Lockout policy
+ZITADEL_PROJECTIONS_CUSTOMIZATIONS_LOCKOUT_POLICY_TRANSACTIONDURATION=2s
+```
+
+## Notifications
+
+```bash
+# Use legacy sequential mode (recommended for now)
+ZITADEL_NOTIFICATIONS_LEGACYENABLED=true
+
+# Number of notification worker threads
+ZITADEL_NOTIFICATIONS_WORKERS=1
+
+# Max job duration
+ZITADEL_NOTIFICATIONS_TRANSACTIONDURATION=10s
+
+# Max retry attempts
+ZITADEL_NOTIFICATIONS_MAXATTEMPTS=3
+
+# Max time before cancelling
+ZITADEL_NOTIFICATIONS_MAXTTL=5m
+```
+
+## Executions (Actions/Webhooks)
+
+```bash
+# Number of execution worker threads
+ZITADEL_EXECUTIONS_WORKERS=1
+
+# Max job duration
+ZITADEL_EXECUTIONS_TRANSACTIONDURATION=10s
+
+# Max time before cancelling
+ZITADEL_EXECUTIONS_MAXTTL=5m
+
+# Blocked domains/IPs (comma-separated)
+ZITADEL_EXECUTIONS_DENYLIST=localhost,127.0.0.0/8,::1,0.0.0.0,::
+```
+
+## Machine Identification
+
+For cloud deployments, ZITADEL can identify machines using metadata APIs.
+
+```bash
+# Use private IP
+ZITADEL_MACHINE_IDENTIFICATION_PRIVATEIP_ENABLED=true
+
+# Use hostname
+ZITADEL_MACHINE_IDENTIFICATION_HOSTNAME_ENABLED=false
+
+# Use webhook (cloud metadata)
+ZITADEL_MACHINE_IDENTIFICATION_WEBHOOK_ENABLED=true
+```
+
+### Google Cloud
+
+```bash
+ZITADEL_MACHINE_IDENTIFICATION_WEBHOOK_URL=http://metadata.google.internal/computeMetadata/v1/instance/id
+```
+
+### AWS EC2
+
+```bash
+ZITADEL_MACHINE_IDENTIFICATION_WEBHOOK_URL=http://169.254.169.254/latest/meta-data/ami-id
+```
+
+### Azure
+
+```bash
+ZITADEL_MACHINE_IDENTIFICATION_WEBHOOK_URL=http://169.254.169.254/metadata/instance?api-version=2021-02-01
+ZITADEL_MACHINE_IDENTIFICATION_WEBHOOK_JPATH=$.compute.vmId
+```
+
+## Instance Configuration
+
+Configure the first/default instance.
+
+```bash
+# First instance settings
+ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME=zitadel-admin
+ZITADEL_FIRSTINSTANCE_ORG_HUMAN_FIRSTNAME=ZITADEL
+ZITADEL_FIRSTINSTANCE_ORG_HUMAN_LASTNAME=Admin
+ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL_ADDRESS=admin@example.com
+ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD=
+
+# Default instance settings
+ZITADEL_DEFAULTINSTANCE_INSTANCENAME=ZITADEL
+ZITADEL_DEFAULTINSTANCE_DEFAULTLANGUAGE=en
+ZITADEL_DEFAULTINSTANCE_ORG_NAME=ZITADEL
+```
+
+## Security
+
+### Password Hashing
+
+```bash
+# Algorithm: argon2i, argon2id, bcrypt, scrypt, pbkdf2, sha2
+ZITADEL_SYSTEMDEFAULTS_PASSWORDHASHER_HASHER_ALGORITHM=bcrypt
+
+# Bcrypt/scrypt cost
+ZITADEL_SYSTEMDEFAULTS_PASSWORDHASHER_HASHER_COST=14
+
+# Argon2 settings
+ZITADEL_SYSTEMDEFAULTS_PASSWORDHASHER_HASHER_TIME=3
+ZITADEL_SYSTEMDEFAULTS_PASSWORDHASHER_HASHER_MEMORY=32768
+ZITADEL_SYSTEMDEFAULTS_PASSWORDHASHER_HASHER_THREADS=4
+```
+
+### Secret Hashing (API/OIDC clients)
+
+```bash
+# Algorithm for client secrets
+ZITADEL_SYSTEMDEFAULTS_SECRETHASHER_HASHER_ALGORITHM=bcrypt
+ZITADEL_SYSTEMDEFAULTS_SECRETHASHER_HASHER_COST=4
+```
+
+### Encryption Keys
+
+Encryption key IDs for different data types:
+
+```bash
+ZITADEL_ENCRYPTIONKEYS_DOMAINVERIFICATION_ENCRYPTIONKEYID=domainVerificationKey
+ZITADEL_ENCRYPTIONKEYS_IDPCONFIG_ENCRYPTIONKEYID=idpConfigKey
+ZITADEL_ENCRYPTIONKEYS_OIDC_ENCRYPTIONKEYID=oidcKey
+ZITADEL_ENCRYPTIONKEYS_SAML_ENCRYPTIONKEYID=samlKey
+ZITADEL_ENCRYPTIONKEYS_OTP_ENCRYPTIONKEYID=otpKey
+ZITADEL_ENCRYPTIONKEYS_SMS_ENCRYPTIONKEYID=smsKey
+ZITADEL_ENCRYPTIONKEYS_SMTP_ENCRYPTIONKEYID=smtpKey
+ZITADEL_ENCRYPTIONKEYS_USER_ENCRYPTIONKEYID=userKey
+```
+
+## Multi-Tenancy
+
+```bash
+# Headers to identify instance
+ZITADEL_INSTANCEHOSTHEADERS=x-zitadel-instance-host
+
+# Headers for public host override
+ZITADEL_PUBLICHOSTHEADERS=x-zitadel-public-host
+```
+
+## Configuration File
+
+Alternatively, use a YAML configuration file:
+
+```yaml config.yaml
+ExternalDomain: auth.example.com
+ExternalPort: 443
+ExternalSecure: true
+Port: 8080
+
+Database:
+  postgres:
+    Host: postgres.example.com
+    Port: 5432
+    Database: zitadel
+    User:
+      Username: zitadel
+      Password: secret
+      SSL:
+        Mode: require
+    Admin:
+      Username: postgres
+      Password: secret
+      SSL:
+        Mode: require
+
+Instrumentation:
+  Log:
+    Level: INFO
+    Format: json
+```
+
+Load with:
+```bash
+zitadel start --config /path/to/config.yaml --masterkey "${ZITADEL_MASTERKEY}"
+```
+
+## Next Steps
+
+- [Docker Compose Deployment](/deployment/docker-compose) - Single-node deployment guide
+- [Kubernetes Deployment](/deployment/kubernetes) - Multi-node production deployment
+- [Production Best Practices](/deployment/production) - Security and optimization

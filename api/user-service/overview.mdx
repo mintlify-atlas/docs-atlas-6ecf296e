@@ -1,0 +1,65 @@
+---
+title: User Service Overview
+description: Manage users in your ZITADEL instance using the User Service API
+---
+
+## Overview
+
+The User Service API is intended to manage users in a ZITADEL instance. This includes creating, updating, deleting, and listing users, as well as managing authentication methods, passwords, and multi-factor authentication.
+
+## API Version
+
+This documentation covers **User Service v2**.
+
+## Authentication
+
+All User Service endpoints require authentication using OAuth2. The following scopes are required:
+
+- `openid`
+- `urn:zitadel:iam:org:project:id:zitadel:aud`
+
+## Base URL
+
+```
+https://$CUSTOM_DOMAIN/v2/users
+```
+
+## Common Operations
+
+### User Management
+
+- [Create User](/api/user-service/create-user) - Create a new user or service account
+- [Update User](/api/user-service/update-user) - Update an existing user
+- [Delete User](/api/user-service/delete-user) - Delete a user from the system
+- [List Users](/api/user-service/list-users) - Search and list users
+
+### User Types
+
+ZITADEL supports two types of users:
+
+1. **Human Users** - Regular users with profiles, emails, and authentication methods
+2. **Machine Users** - Service accounts for API access
+
+### User States
+
+Users can be in one of the following states:
+
+- `USER_STATE_ACTIVE` - User is active and can log in
+- `USER_STATE_INACTIVE` - User is inactive (deactivated)
+- `USER_STATE_LOCKED` - User is locked (temporary)
+- `USER_STATE_DELETED` - User has been deleted
+- `USER_STATE_INITIAL` - User is in initial state (invited)
+
+## Required Permissions
+
+Most User Service operations require the `user.write` permission for modifications and `authenticated` permission for read operations. Specific permissions are documented on each endpoint page.
+
+## Error Responses
+
+Common HTTP status codes:
+
+- `400` - Bad Request: The request is malformed
+- `401` - Unauthorized: User is not authenticated
+- `403` - Forbidden: User does not have permission
+- `404` - Not Found: User does not exist
+- `409` - Conflict: User already exists

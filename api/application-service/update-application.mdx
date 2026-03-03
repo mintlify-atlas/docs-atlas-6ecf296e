@@ -1,0 +1,155 @@
+---
+title: Update Application
+description: Update an existing application's configuration
+---
+
+## Endpoint
+
+```
+PATCH /v2/applications/{application_id}
+```
+
+## Description
+
+Changes the configuration of an OIDC, API, or SAML type application, as well as the application name.
+
+## Required Permission
+
+- `project.app.write`
+
+## Path Parameters
+
+<ParamField path="application_id" type="string" required>
+  The unique ID of the application to be updated.
+  
+  **Min Length:** 1  
+  **Max Length:** 200
+</ParamField>
+
+## Request Body
+
+<ParamField body="projectId" type="string" required>
+  The ID of the project the application belongs to.
+  
+  **Min Length:** 1  
+  **Max Length:** 200
+</ParamField>
+
+<ParamField body="name" type="string">
+  Updated name for the application. If not set, the name will not be changed.
+  
+  **Max Length:** 200
+</ParamField>
+
+<ParamField body="oidcConfiguration" type="object">
+  Updated OIDC configuration. Only provided fields will be updated.
+  
+  <ParamField body="redirectUris" type="array">
+    Updated redirect URIs (replaces all existing URIs).
+  </ParamField>
+  
+  <ParamField body="responseTypes" type="array">
+    Updated response types.
+  </ParamField>
+  
+  <ParamField body="grantTypes" type="array">
+    Updated grant types.
+  </ParamField>
+  
+  <ParamField body="applicationType" type="string">
+    Updated application type.
+  </ParamField>
+  
+  <ParamField body="authMethodType" type="string">
+    Updated authentication method.
+  </ParamField>
+  
+  <ParamField body="postLogoutRedirectUris" type="array">
+    Updated post-logout redirect URIs.
+  </ParamField>
+  
+  <ParamField body="developmentMode" type="boolean">
+    Updated dev mode setting.
+  </ParamField>
+  
+  <ParamField body="accessTokenType" type="string">
+    Updated access token type.
+  </ParamField>
+  
+  <ParamField body="accessTokenRoleAssertion" type="boolean">
+    Updated access token role assertion.
+  </ParamField>
+  
+  <ParamField body="idTokenRoleAssertion" type="boolean">
+    Updated ID token role assertion.
+  </ParamField>
+  
+  <ParamField body="idTokenUserinfoAssertion" type="boolean">
+    Updated ID token userinfo assertion.
+  </ParamField>
+</ParamField>
+
+<ParamField body="samlConfiguration" type="object">
+  Updated SAML configuration.
+  
+  <ParamField body="metadataXml" type="bytes">
+    Updated SAML metadata XML.
+  </ParamField>
+  
+  <ParamField body="metadataUrl" type="string">
+    Updated metadata URL.
+  </ParamField>
+</ParamField>
+
+<ParamField body="apiConfiguration" type="object">
+  Updated API configuration.
+  
+  <ParamField body="authMethodType" type="string">
+    Updated authentication method.
+  </ParamField>
+</ParamField>
+
+## Response
+
+<ResponseField name="changeDate" type="timestamp">
+  The timestamp of the application update. If no changes were made, the previous change date is returned.
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X PATCH https://your-domain.zitadel.cloud/v2/applications/1035496534033449 \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "projectId": "69629026806489455",
+    "name": "My Updated Web App",
+    "oidcConfiguration": {
+      "redirectUris": [
+        "https://myapp.com/callback",
+        "https://myapp.com/auth/callback"
+      ],
+      "developmentMode": false
+    }
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "changeDate": "2024-12-18T07:50:47.492Z"
+}
+```
+
+## Error Responses
+
+- `404 Not Found` - Application not found
+- `400 Bad Request` - Invalid configuration
+- `403 Forbidden` - Insufficient permissions
+
+## Important Notes
+
+- When updating arrays (like redirect URIs), the entire array is replaced
+- Optional fields that are not provided will remain unchanged
+- Changing authentication methods may require regenerating secrets

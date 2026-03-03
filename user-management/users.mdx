@@ -1,0 +1,264 @@
+---
+title: "Users"
+description: "Manage human users and service accounts in ZITADEL"
+---
+
+Users are the core identity entities in ZITADEL. They represent either human users who interact with your applications or machine users (service accounts) that enable programmatic access.
+
+## User Types
+
+ZITADEL supports two types of users:
+
+<CardGroup cols={2}>
+  <Card title="Human Users" icon="user">
+    Real people who authenticate with passwords, passkeys, or external identity providers. They have profiles with personal information and can use multi-factor authentication.
+  </Card>
+  <Card title="Machine Users" icon="robot">
+    Service accounts for automated processes and applications. They authenticate using client secrets, JWT keys, or personal access tokens.
+  </Card>
+</CardGroup>
+
+## Human User Properties
+
+Human users have rich profiles that include:
+
+- **Profile Information**: Given name, family name, nickname, display name, preferred language, and gender
+- **Contact Details**: Email address and phone number (both can be verified)
+- **Login Names**: Username and multiple login names based on organization domains
+- **Authentication**: Password, passkeys (WebAuthn), and multi-factor authentication methods
+- **State Management**: Active, inactive, locked, deleted, or initial states
+
+### User States
+
+- **Active**: User can log in and access applications
+- **Inactive**: User is deactivated and cannot log in, but data is retained
+- **Locked**: User is temporarily locked (e.g., due to failed login attempts)
+- **Initial**: User has been created but hasn't completed setup
+- **Deleted**: User has been removed from the system
+
+## Creating Users
+
+You can create users through the ZITADEL Console or programmatically via the API.
+
+### Via Console
+
+1. Navigate to your **Organization**
+2. Go to **Users**
+3. Click **New User**
+4. Select user type (Human or Machine)
+5. Fill in required information
+6. Choose how to notify the user (email invitation or return code)
+
+### Via API
+
+Create a human user with the User Service:
+
+```javascript
+const response = await userService.createUser({
+  organizationId: "69629023906488334",
+  user: {
+    userName: "alice.smith",
+    profile: {
+      givenName: "Alice",
+      familyName: "Smith",
+      displayName: "Alice Smith",
+      preferredLanguage: "en"
+    },
+    email: {
+      email: "alice.smith@example.com",
+      isVerified: false
+    }
+  }
+});
+```
+
+## Machine Users (Service Accounts)
+
+Machine users are designed for application-to-application communication and automated processes.
+
+### Machine User Properties
+
+- **Name**: Identifier for the service account
+- **Description**: Purpose of the service account
+- **Access Token Type**: Bearer or JWT tokens
+- **Authentication Methods**: Client secret, JWT keys, or personal access tokens (PATs)
+
+### Authentication Options
+
+<Accordion title="Client Secret">
+The simplest authentication method. ZITADEL generates a client secret that your application uses with the client credentials flow.
+
+```bash
+curl -X POST https://your-domain.zitadel.cloud/oauth/v2/token \
+  -d grant_type=client_credentials \
+  -d client_id=username@projectid.projectname \
+  -d client_secret=YOUR_SECRET
+```
+</Accordion>
+
+<Accordion title="JWT Key">
+Use asymmetric cryptography for more secure authentication. Upload a public key and sign JWTs with your private key.
+
+```javascript
+const jwt = createJWT({
+  iss: userId,
+  sub: userId,
+  aud: "https://your-domain.zitadel.cloud",
+  exp: Date.now() / 1000 + 3600
+}, privateKey);
+```
+</Accordion>
+
+<Accordion title="Personal Access Token (PAT)">
+Long-lived tokens for simple API access. Best for development and testing.
+
+```bash
+curl -H "Authorization: Bearer YOUR_PAT" \
+  https://your-domain.zitadel.cloud/v2/users
+```
+</Accordion>
+
+## Managing User Authentication
+
+### Email and Phone Verification
+
+When you set or update a user's email or phone number, ZITADEL can send a verification code:
+
+- **Send Code**: ZITADEL emails or texts the code to the user
+- **Return Code**: The code is returned in the API response for custom delivery
+
+Users must verify their contact information before using it for authentication or recovery.
+
+### Multi-Factor Authentication (MFA)
+
+ZITADEL supports multiple second-factor authentication methods:
+
+- **TOTP** (Time-based One-Time Password): Apps like Google Authenticator or Authy
+- **Passkeys**: WebAuthn-based passwordless authentication
+- **U2F Tokens**: Hardware security keys
+- **OTP via SMS**: Text message codes
+- **OTP via Email**: Email codes
+- **Recovery Codes**: Single-use backup codes
+
+### Passkeys
+
+Passkeys provide the most secure and user-friendly authentication experience:
+
+1. **Register a Passkey**: User initiates passkey registration
+2. **Challenge Response**: ZITADEL provides a WebAuthn challenge
+3. **Device Authentication**: User's device (phone, laptop, security key) creates a passkey
+4. **Verification**: ZITADEL verifies the passkey registration
+
+## User Invitations
+
+When creating a user, you can send an invitation code that allows them to:
+
+- Set up their initial password or passkey
+- Configure their first authentication method
+- Complete their profile
+
+The invitation system supports custom URLs and application names for branded experiences:
+
+```javascript
+const invite = await userService.createInviteCode({
+  userId: "d654e6ba-70a3-48ef-a95d-37c8d8a7901a",
+  urlTemplate: "https://myapp.com/invite?userID={{.UserID}}&code={{.Code}}",
+  applicationName: "My Application"
+});
+```
+
+## User Lifecycle Management
+
+### Deactivating Users
+
+Deactivate users when they should no longer have access but you want to retain their data:
+
+- User cannot log in
+- All sessions are terminated
+- User data and history are preserved
+- Can be reactivated later
+
+### Locking Users
+
+Lock users temporarily (e.g., after multiple failed login attempts):
+
+- User cannot log in until unlocked
+- Typically used for security incidents
+- Can be unlocked by an administrator
+
+### Deleting Users
+
+Permanently remove users from the system:
+
+- User cannot log in
+- User appears as "not found" in API calls
+- Some audit data may be retained
+- Cannot be reversed
+
+## User Metadata
+
+Attach custom key-value data to users for application-specific needs:
+
+```javascript
+await userService.setUserMetadata({
+  userId: "d654e6ba-70a3-48ef-a95d-37c8d8a7901a",
+  metadata: [
+    {
+      key: "department",
+      value: btoa("Engineering") // Base64 encoded
+    },
+    {
+      key: "employee_id",
+      value: btoa("EMP-12345")
+    }
+  ]
+});
+```
+
+<Note>
+Metadata values must be base64 encoded. Maximum value size is 500KB per entry.
+</Note>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Appropriate User Types">
+    - Create **human users** for people who need to log in
+    - Create **machine users** for services, APIs, and automation
+    - Don't share machine user credentials across multiple services
+  </Accordion>
+
+  <Accordion title="Implement Strong Authentication">
+    - Encourage passkey adoption for passwordless security
+    - Require MFA for privileged accounts
+    - Use JWT keys instead of client secrets for production machine users
+    - Rotate credentials regularly
+  </Accordion>
+
+  <Accordion title="Manage User Lifecycle">
+    - Deactivate users immediately when they leave the organization
+    - Use the locked state for security incidents
+    - Only delete users when required for compliance
+    - Regularly audit user accounts and remove unused machine users
+  </Accordion>
+
+  <Accordion title="Organization Structure">
+    - Group users by organization based on your business structure
+    - Use organization domains to simplify login (users can use email addresses)
+    - Consider creating separate organizations for different business units or customers
+  </Accordion>
+</AccordionGroup>
+
+## Related Concepts
+
+<CardGroup cols={3}>
+  <Card title="Organizations" icon="building" href="/user-management/organizations">
+    Users belong to organizations that provide multi-tenancy
+  </Card>
+  <Card title="Projects" icon="folder" href="/user-management/projects">
+    Projects group applications and define available roles
+  </Card>
+  <Card title="Roles" icon="shield" href="/user-management/roles">
+    Assign roles to users to control their permissions
+  </Card>
+</CardGroup>

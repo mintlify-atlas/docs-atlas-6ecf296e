@@ -1,0 +1,189 @@
+---
+title: API Overview
+description: Learn about the ZITADEL API architecture, design principles, and available services
+---
+
+## Introduction
+
+ZITADEL provides a comprehensive API that allows you to manage all aspects of identity and access management programmatically. The API follows an API-first approach, meaning all features available in the UI are also accessible via the API.
+
+## API Design Philosophy
+
+ZITADEL's API is built on the following core principles:
+
+### Resource-Oriented Design
+
+Starting with V2, ZITADEL uses a resource-oriented design. The API is organized around key resources such as:
+
+- **Users**: Human users and service accounts
+- **Organizations**: Multi-tenant organizational units
+- **Projects**: Applications and authorization configurations
+- **Sessions**: Authentication session management
+- **Settings**: Instance and organization-level configurations
+
+Each resource has a unique identifier and a complete lifecycle that can be managed through the API.
+
+### Protocol Support
+
+ZITADEL uses **connectRPC** as the primary transport protocol, which provides:
+
+- **gRPC support**: Full gRPC compatibility with Protocol Buffers
+- **HTTP/1.1 support**: RESTful JSON APIs for broader compatibility
+- **HTTP/2 support**: Modern transport for improved performance
+
+This means you can call the same API using different protocols depending on your needs:
+
+```bash
+# HTTP/1.1 with JSON
+curl -X POST https://my-domain.zitadel.cloud/v2/users/123 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{"user_id": "123"}'
+
+# gRPC (using grpcurl)
+grpcurl -H "Authorization: Bearer <token>" \
+  my-domain.zitadel.cloud:443 \
+  zitadel.user.v2.UserService/GetUserByID
+```
+
+### API Versioning
+
+Services and messages are versioned using major version numbers:
+
+- **V1**: Legacy context-based API (being phased out)
+- **V2**: Current stable API with resource-oriented design
+- **V2beta**: Preview features under active development
+- **V3alpha**: Experimental features
+
+Breaking changes require a new major version, ensuring backward compatibility within a version.
+
+## API Services
+
+ZITADEL organizes its API into focused services:
+
+### Core Services
+
+**User Service** (`zitadel.user.v2.UserService`)
+- Create, read, update, and delete users
+- Manage user profiles, emails, and phone numbers
+- Handle authentication methods (passwords, passkeys, MFA)
+- Personal Access Token (PAT) management
+
+**Organization Service** (`zitadel.org.v2.OrganizationService`)
+- Create and manage organizations
+- Organization metadata and settings
+- Organization member management
+
+**Session Service** (`zitadel.session.v2.SessionService`)
+- Create and manage user sessions
+- Session challenges and verification
+- Custom login UI integration
+
+**Settings Service** (`zitadel.settings.v2.SettingsService`)
+- Password policies and login settings
+- Branding and appearance configuration
+- Security and lockout settings
+
+### Authentication Services
+
+**OIDC Service** (`zitadel.oidc.v2.OIDCService`)
+- OpenID Connect authorization flows
+- Token introspection and management
+
+**SAML Service** (`zitadel.saml.v2.SAMLService`)
+- SAML 2.0 authorization
+
+## Standard Operations
+
+ZITADEL APIs follow consistent naming conventions for operations:
+
+| Operation | Method | Description | Example |
+|-----------|--------|-------------|--------|
+| **Create** | POST | Create a new resource | `POST /v2/users/new` |
+| **Get** | GET | Retrieve a single resource | `GET /v2/users/{id}` |
+| **List** | POST | Search/list resources with filters | `POST /v2/users` |
+| **Update** | POST | Update an existing resource | `POST /v2/users/{id}` |
+| **Delete** | DELETE | Remove a resource | `DELETE /v2/users/{id}` |
+| **Set** | PUT | Replace a resource | `PUT /v2/settings` |
+
+## Error Handling
+
+The API returns machine-readable errors with:
+
+- **Status codes**: HTTP status codes or gRPC status codes
+- **Error codes**: Unique identifiers for specific error types
+- **Error details**: Structured error information following Google RPC error details format
+
+Example error response:
+
+```json
+{
+  "code": "user_invalid_information",
+  "message": "invalid or missing information provided for the creation of the user",
+  "details": [
+    {
+      "@type": "type.googleapis.com/google.rpc.BadRequest",
+      "fieldViolations": [
+        {
+          "field": "given_name",
+          "description": "given name is required",
+          "reason": "MISSING_VALUE"
+        }
+      ]
+    }
+  ]
+}
+```
+
+## Pagination and Filtering
+
+List operations support:
+
+- **Pagination**: Offset and limit parameters (default limit: 100, max: 1000)
+- **Sorting**: Configurable sort field and direction
+- **Filtering**: Type-safe filters for precise queries
+
+Example list request:
+
+```json
+{
+  "pagination": {
+    "offset": 0,
+    "limit": 50,
+    "asc": true
+  },
+  "sorting_column": "USER_FIELD_NAME_CREATION_DATE",
+  "filters": [
+    {
+      "email_filter": {
+        "email": "@example.com",
+        "method": "TEXT_FILTER_METHOD_CONTAINS"
+      }
+    }
+  ]
+}
+```
+
+## API Endpoints
+
+All API endpoints are available at your ZITADEL instance domain:
+
+- **Cloud**: `https://your-domain.zitadel.cloud`
+- **Self-hosted**: `https://your-zitadel-domain.com`
+
+Common base paths:
+- `/v2/users` - User management
+- `/v2/organizations` - Organization management
+- `/v2/sessions` - Session management
+- `/oauth/v2/*` - OAuth 2.0 / OpenID Connect endpoints
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/api/authentication">
+    Learn how to authenticate API requests
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/api/quickstart">
+    Make your first API call in minutes
+  </Card>
+</CardGroup>

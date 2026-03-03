@@ -1,0 +1,84 @@
+---
+title: Application Service Overview
+description: Manage applications in your ZITADEL projects
+---
+
+## Overview
+
+The Application Service provides methods to create, update, delete, and list applications and application keys. Applications represent OAuth2/OIDC clients, APIs, or SAML service providers.
+
+## API Version
+
+This documentation covers **Application Service v2**.
+
+## Authentication
+
+All Application Service endpoints require authentication using OAuth2.
+
+## Base URL
+
+```
+https://$CUSTOM_DOMAIN/v2/applications
+```
+
+## Common Operations
+
+### Application Management
+
+- [Create Application](/api/application-service/create-application) - Create a new application
+- [Update Application](/api/application-service/update-application) - Update an existing application
+- [List Applications](/api/application-service/list-applications) - Search and list applications
+
+## Application Types
+
+ZITADEL supports three types of applications:
+
+### 1. OIDC Applications
+
+OAuth2/OpenID Connect applications for user authentication:
+
+- **Web Applications** - Server-side applications with client secrets
+- **Native Applications** - Mobile and desktop applications
+- **Single Page Applications (SPA)** - Browser-based applications
+- **User Agent Applications** - Browser-based applications using implicit flow
+
+### 2. API Applications
+
+Machine-to-machine applications for API access:
+
+- Use client credentials for authentication
+- Support JWT or basic auth methods
+- No user interaction required
+
+### 3. SAML Applications
+
+SAML 2.0 service providers:
+
+- Enterprise SSO integration
+- SAML metadata configuration
+- Assertion-based authentication
+
+## OIDC Configuration
+
+Key settings for OIDC applications:
+
+- **Redirect URIs** - Allowed callback URIs for OAuth flows
+- **Response Types** - Code, ID token, or token responses
+- **Grant Types** - Authorization code, refresh token, implicit, etc.
+- **Application Type** - Web, native, or user agent
+- **Auth Method** - Client secret, private key JWT, or none
+- **Token Types** - Bearer or JWT access tokens
+
+## Required Permissions
+
+- `project.app.write` - Create and modify applications
+- `project.app.read` - Read application data
+- `project.app.delete` - Delete applications
+
+## Error Responses
+
+Common HTTP status codes:
+
+- `400` - Bad Request
+- `403` - Forbidden: Insufficient permissions
+- `404` - Not Found: Application does not exist

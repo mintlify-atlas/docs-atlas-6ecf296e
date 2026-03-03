@@ -1,0 +1,78 @@
+---
+title: Session Service Overview
+description: API for managing user sessions in ZITADEL
+---
+
+The Session Service API is designed to manage sessions in a ZITADEL instance. Sessions are used to track authenticated users and their verification factors across your applications.
+
+## Base URL
+
+```
+https://$CUSTOM_DOMAIN/v2/sessions
+```
+
+## Authentication
+
+All endpoints require authentication using OAuth2 with the following scopes:
+- `openid`
+- `urn:zitadel:iam:org:project:id:zitadel:aud`
+
+## Key Concepts
+
+### Sessions
+
+A session represents an authenticated user context. It contains:
+- **Factors**: Verification methods that have been checked (user, password, MFA, etc.)
+- **Metadata**: Custom key-value pairs for application-specific data
+- **User Agent**: Information about the client that created the session
+- **Expiration**: Optional automatic invalidation time
+
+### Session Tokens
+
+When you create or update a session, ZITADEL returns a session token. This token can be used:
+- As authentication for OIDC/SAML requests
+- As an OAuth2 access token for ZITADEL APIs
+- To identify the session in subsequent operations
+
+### Verification Factors
+
+Sessions support multiple verification factors:
+- **User**: Identifies the authenticated user
+- **Password**: Password verification
+- **WebAuthN**: Passkey/security key verification
+- **TOTP**: Time-based one-time password
+- **OTP**: SMS or email one-time password
+- **IDP Intent**: External identity provider authentication
+- **Recovery Code**: Account recovery code
+
+## Available Operations
+
+- [Create Session](/api/session-service/create-session) - Create a new session with initial checks
+- [List Sessions](/api/session-service/list-sessions) - Search for sessions by various criteria
+- [Terminate Session](/api/session-service/terminate-session) - Invalidate an existing session
+
+## Common Use Cases
+
+### Custom Login UI
+
+The Session API is essential when building a custom login interface. Follow the [Login UI guide](/docs/guides/integrate/login-ui) to learn how to:
+1. Create a session with user credentials
+2. Perform additional factor checks (MFA)
+3. Use the session token to complete OIDC flows
+
+### Session Management
+
+Allow users to view and manage their active sessions:
+1. List all sessions for a user
+2. Display session details (device, location, last activity)
+3. Allow users to terminate sessions from untrusted devices
+
+## Permissions
+
+| Operation | Required Permission | Notes |
+|-----------|-------------------|-------|
+| List Sessions | `session.read` | No permission needed for own sessions |
+| Get Session | `session.read` | No permission needed for own sessions or with session token |
+| Create Session | `session.write` | - |
+| Update Session | `session.write` | - |
+| Delete Session | `session.delete` | No permission needed for own sessions or with session token |

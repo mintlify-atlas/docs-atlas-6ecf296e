@@ -1,0 +1,114 @@
+---
+title: Terminate Session
+description: Invalidate an existing session
+---
+
+Terminates an existing session by invalidating it and its token. The session can no longer be used for authentication or to access ZITADEL APIs.
+
+## HTTP Request
+
+```
+DELETE /v2/sessions/{session_id}
+```
+
+## Permissions
+
+Requires `session.delete` permission, or no permission if deleting your own session or providing the current session token.
+
+## Path Parameters
+
+<ParamField path="session_id" type="string" required>
+  The unique identifier of the session to terminate (1-200 characters).
+</ParamField>
+
+## Request Body
+
+<ParamField path="session_token" type="string">
+  The current token of the session, previously returned on create/update. The token is required unless:
+  - The caller created the session
+  - The authenticated user requests their own session (checked user)
+  - The security token in the authorization header has the same user agent as the session
+  - The caller has `session.delete` permission on the instance or user's organization
+</ParamField>
+
+## Response
+
+<ResponseField name="details" type="object">
+  Metadata about the deletion operation.
+  
+  <ResponseField name="sequence" type="string">
+    The sequence number of this change.
+  </ResponseField>
+  
+  <ResponseField name="change_date" type="timestamp">
+    When the session was terminated.
+  </ResponseField>
+  
+  <ResponseField name="resource_owner" type="string">
+    The resource owner of the session.
+  </ResponseField>
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X DELETE 'https://api.zitadel.cloud/v2/sessions/222430354126975533' \
+  -H 'Authorization: Bearer <TOKEN>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "session_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IjIy..."
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "details": {
+    "sequence": "10",
+    "change_date": "2024-03-15T11:30:00.000Z",
+    "resource_owner": "69629023906488334"
+  }
+}
+```
+
+## Error Responses
+
+| Status Code | Description |
+|-------------|-------------|
+| 400 | Invalid session ID or token |
+| 401 | Unauthorized - missing or invalid authentication |
+| 403 | Forbidden - insufficient permissions |
+| 404 | Session not found |
+
+## Use Cases
+
+### User-Initiated Logout
+
+Allow users to log out from your application:
+1. Get the session ID from your application state
+2. Call this endpoint with the session token
+3. Clear local session data
+
+### Security: Remote Session Termination
+
+Allow users to terminate sessions from other devices:
+1. List all sessions for the user
+2. Display active sessions with device information
+3. Allow user to terminate suspicious sessions
+4. Call this endpoint without the session token (requires `session.delete` permission)
+
+### Administrative Session Cleanup
+
+Terminate sessions as an administrator:
+1. List sessions based on criteria (expired, inactive, etc.)
+2. Call this endpoint with appropriate permissions
+3. Session is immediately invalidated
+
+## Notes
+
+- Once terminated, the session token becomes invalid immediately
+- The session cannot be used for OIDC/SAML authentication
+- The session cannot be used as an OAuth2 access token
+- Terminated sessions remain in the list until explicitly deleted
+- You can only terminate your own session unless you have `session.delete` permission

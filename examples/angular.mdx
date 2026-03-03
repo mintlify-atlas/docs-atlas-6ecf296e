@@ -1,0 +1,368 @@
+---
+title: Angular Example
+description: Integrate ZITADEL authentication into Angular applications using the OAuth 2.0 PKCE flow.
+---
+
+# Angular Example
+
+Learn how to integrate ZITADEL authentication into an Angular application using the secure OAuth 2.0 PKCE flow.
+
+## Overview
+
+[Angular](https://angular.dev) is a TypeScript-based framework for building web applications. This example demonstrates authentication using `@edgeflare/ngx-oidc`, built on `oidc-client-ts`.
+
+### Auth Library
+
+This example uses **[@edgeflare/ngx-oidc](https://www.npmjs.com/package/@edgeflare/ngx-oidc)**, which provides Angular-specific wrappers around **[oidc-client-ts](https://www.npmjs.com/package/oidc-client-ts)**.
+
+## What You'll Build
+
+- Public landing page with sign-in button
+- PKCE authentication flow with ZITADEL
+- Route guards for protected pages
+- Profile page displaying user information and claims
+- Federated logout with session termination
+- Automatic token refresh
+
+## Prerequisites
+
+Create a PKCE application in the [ZITADEL Console](https://zitadel.com/docs/guides/manage/console/console-overview):
+
+1. Create a new **Web application** in your ZITADEL project
+2. Select **PKCE** as the authentication method
+3. Configure redirect URIs:
+   - Development: `http://localhost:3000/auth/callback`
+4. Configure post-logout redirect URIs:
+   - Development: `http://localhost:3000/auth/logout/callback`
+5. Copy your **Client ID**
+6. Enable **refresh tokens** in Token Settings (optional)
+
+<Callout type="warning">
+Enable **Dev Mode** in ZITADEL Console for local development with HTTP URLs. Always use HTTPS in production.
+</Callout>
+
+## Installation
+
+Clone the example repository:
+
+```bash
+git clone https://github.com/zitadel/example-auth-angular.git
+cd example-auth-angular
+```
+
+Install dependencies:
+
+<CodeGroup>
+```bash npm
+npm install
+```
+
+```bash pnpm
+pnpm install
+```
+
+```bash yarn
+yarn install
+```
+</CodeGroup>
+
+## Configuration
+
+Create a `.env` file:
+
+```bash
+cp .env.example .env
+```
+
+Configure environment variables:
+
+```env
+NODE_ENV=development
+PORT=3000
+NG_APP_ZITADEL_DOMAIN=https://your-instance.zitadel.cloud
+NG_APP_ZITADEL_CLIENT_ID=your-client-id
+NG_APP_ZITADEL_CLIENT_SECRET=
+NG_APP_ZITADEL_CALLBACK_URL=http://localhost:3000/auth/callback
+NG_APP_ZITADEL_POST_LOGIN_URL=/profile
+NG_APP_ZITADEL_POST_LOGOUT_URL=http://localhost:3000/auth/logout/callback
+```
+
+## Implementation
+
+### Configure OIDC Module
+
+Update `src/app/app.config.ts`:
+
+```typescript
+import { ApplicationConfig, provideZoneChangeDetection } from '@angular/core';
+import { provideRouter } from '@angular/router';
+import { provideAuth } from '@edgeflare/ngx-oidc';
+import { routes } from './app.routes';
+import { environment } from '../environments/environment';
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideZoneChangeDetection({ eventCoalescing: true }),
+    provideRouter(routes),
+    provideAuth({
+      authority: environment.zitadelDomain,
+      client_id: environment.zitadelClientId,
+      redirect_uri: environment.zitadelCallbackUrl,
+      post_logout_redirect_uri: environment.zitadelPostLogoutUrl,
+      response_type: 'code',
+      scope: 'openid profile email offline_access',
+      automaticSilentRenew: true,
+      loadUserInfo: true,
+    }),
+  ],
+};
+```
+
+### Environment Configuration
+
+Update `src/environments/environment.ts`:
+
+```typescript
+export const environment = {
+  production: false,
+  zitadelDomain: 'https://your-instance.zitadel.cloud',
+  zitadelClientId: 'your-client-id',
+  zitadelCallbackUrl: 'http://localhost:3000/auth/callback',
+  zitadelPostLogoutUrl: 'http://localhost:3000/auth/logout/callback',
+  zitadelPostLoginUrl: '/profile',
+};
+```
+
+### Create Auth Guard
+
+Create `src/app/guards/auth.guard.ts`:
+
+```typescript
+import { inject } from '@angular/core';
+import { Router, type CanActivateFn } from '@angular/router';
+import { OidcSecurityService } from '@edgeflare/ngx-oidc';
+import { map } from 'rxjs/operators';
+
+export const authGuard: CanActivateFn = () => {
+  const oidcService = inject(OidcSecurityService);
+  const router = inject(Router);
+
+  return oidcService.isAuthenticated$.pipe(
+    map((isAuthenticated) => {
+      if (!isAuthenticated) {
+        oidcService.authorize();
+        return false;
+      }
+      return true;
+    })
+  );
+};
+```
+
+### Home Component
+
+Create `src/app/components/home/home.component.ts`:
+
+```typescript
+import { Component } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { OidcSecurityService } from '@edgeflare/ngx-oidc';
+import { Router } from '@angular/router';
+
+@Component({
+  selector: 'app-home',
+  standalone: true,
+  imports: [CommonModule],
+  template: `
+    <div class="container">
+      <h1>Welcome to ZITADEL + Angular</h1>
+      <p>This example demonstrates authentication with ZITADEL using PKCE.</p>
+      <button (click)="login()">Sign In with ZITADEL</button>
+    </div>
+  `,
+})
+export class HomeComponent {
+  constructor(
+    private oidcService: OidcSecurityService,
+    private router: Router
+  ) {}
+
+  login() {
+    this.oidcService.authorize();
+  }
+}
+```
+
+### Profile Component
+
+Create `src/app/components/profile/profile.component.ts`:
+
+```typescript
+import { Component, OnInit } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { OidcSecurityService } from '@edgeflare/ngx-oidc';
+import { Observable } from 'rxjs';
+
+@Component({
+  selector: 'app-profile',
+  standalone: true,
+  imports: [CommonModule],
+  template: `
+    <div class="container" *ngIf="userData$ | async as user">
+      <h1>Profile</h1>
+      <div class="profile-info">
+        <p><strong>Name:</strong> {{ user.name }}</p>
+        <p><strong>Email:</strong> {{ user.email }}</p>
+        <p><strong>User ID:</strong> {{ user.sub }}</p>
+        <p><strong>Email Verified:</strong> {{ user.email_verified ? 'Yes' : 'No' }}</p>
+      </div>
+      <button (click)="logout()">Sign Out</button>
+    </div>
+  `,
+})
+export class ProfileComponent implements OnInit {
+  userData$!: Observable<any>;
+
+  constructor(private oidcService: OidcSecurityService) {}
+
+  ngOnInit() {
+    this.userData$ = this.oidcService.userData$;
+  }
+
+  logout() {
+    this.oidcService.logoff();
+  }
+}
+```
+
+### Callback Component
+
+Create `src/app/components/callback/callback.component.ts`:
+
+```typescript
+import { Component, OnInit } from '@angular/core';
+import { Router } from '@angular/router';
+import { OidcSecurityService } from '@edgeflare/ngx-oidc';
+import { environment } from '../../../environments/environment';
+
+@Component({
+  selector: 'app-callback',
+  standalone: true,
+  template: `<div>Processing authentication...</div>`,
+})
+export class CallbackComponent implements OnInit {
+  constructor(
+    private oidcService: OidcSecurityService,
+    private router: Router
+  ) {}
+
+  ngOnInit() {
+    this.oidcService.checkAuth().subscribe(({ isAuthenticated }) => {
+      if (isAuthenticated) {
+        this.router.navigate([environment.zitadelPostLoginUrl]);
+      } else {
+        this.router.navigate(['/']);
+      }
+    });
+  }
+}
+```
+
+### Configure Routes
+
+Update `src/app/app.routes.ts`:
+
+```typescript
+import { Routes } from '@angular/router';
+import { HomeComponent } from './components/home/home.component';
+import { ProfileComponent } from './components/profile/profile.component';
+import { CallbackComponent } from './components/callback/callback.component';
+import { authGuard } from './guards/auth.guard';
+
+export const routes: Routes = [
+  { path: '', component: HomeComponent },
+  { path: 'auth/callback', component: CallbackComponent },
+  { path: 'profile', component: ProfileComponent, canActivate: [authGuard] },
+  { path: '**', redirectTo: '' },
+];
+```
+
+## Run the Application
+
+Start the development server:
+
+<CodeGroup>
+```bash npm
+npm start
+```
+
+```bash pnpm
+pnpm start
+```
+
+```bash yarn
+yarn start
+```
+</CodeGroup>
+
+Open `http://localhost:3000` in your browser.
+
+## Testing the Flow
+
+1. Visit the home page
+2. Click **Sign In with ZITADEL**
+3. Authenticate with ZITADEL
+4. You'll be redirected to the profile page
+5. View your user information
+6. Click **Sign Out** to test logout
+
+## Advanced Features
+
+### Access Token for API Calls
+
+```typescript
+import { OidcSecurityService } from '@edgeflare/ngx-oidc';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
+
+export class ApiService {
+  constructor(
+    private http: HttpClient,
+    private oidcService: OidcSecurityService
+  ) {}
+
+  getUserData() {
+    return this.oidcService.getAccessToken().pipe(
+      switchMap((token) => {
+        const headers = new HttpHeaders({
+          Authorization: `Bearer ${token}`,
+        });
+        return this.http.get('https://api.example.com/user', { headers });
+      })
+    );
+  }
+}
+```
+
+### Check User Roles
+
+```typescript
+this.oidcService.userData$.subscribe((user) => {
+  const roles = user['urn:zitadel:iam:org:project:roles'];
+  if (roles && roles['admin']) {
+    // User has admin role
+  }
+});
+```
+
+## Resources
+
+- [Example Repository](https://github.com/zitadel/example-auth-angular)
+- [Angular Documentation](https://angular.dev)
+- [@edgeflare/ngx-oidc](https://www.npmjs.com/package/@edgeflare/ngx-oidc)
+- [oidc-client-ts](https://www.npmjs.com/package/oidc-client-ts)
+
+## Next Steps
+
+- [Explore Node.js example](/examples/nodejs)
+- [Learn about OIDC flows](/integration/oidc)
+- [Implement authorization](/concepts/authorization)

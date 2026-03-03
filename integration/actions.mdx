@@ -1,0 +1,569 @@
+---
+title: Actions
+description: Customize authentication and authorization flows with JavaScript code executed at specific trigger points in ZITADEL
+---
+
+ZITADEL Actions allow you to execute custom JavaScript code at specific points in authentication and authorization flows. This enables you to implement custom business logic, integrate with external systems, validate data, and manipulate user information beyond ZITADEL's out-of-the-box capabilities.
+
+## Why use Actions?
+
+Actions solve problems that can't be anticipated by ZITADEL's standard features:
+
+**Custom validation**
+
+Implement domain-specific validation rules before users are created or authenticated, such as checking email domains against an allowlist or validating employee IDs.
+
+**Automated workflows**
+
+Automatically assign roles based on user attributes, sync data with external systems, or trigger notifications when specific events occur.
+
+**Data enrichment**
+
+Add custom metadata to users, modify claims in tokens, or integrate profile data from external sources during authentication.
+
+**Integration requirements**
+
+Connect ZITADEL to your existing business systems, trigger webhooks, call external APIs, or synchronize data across platforms.
+
+## Actions Architecture
+
+Actions consist of three main components:
+
+### 1. Action Script
+
+A JavaScript function that contains your custom logic:
+
+```javascript
+function customAction(ctx, api) {
+  // ctx: Context object with user, request, and flow information
+  // api: API object to manipulate the flow or make external calls
+  
+  // Your custom logic here
+}
+```
+
+### 2. Flow Type
+
+The stage in the authentication/authorization process where the action runs:
+
+- **External Authentication**: After authentication with external identity provider
+- **Pre Userinfo Creation**: Before userinfo endpoint returns claims
+- **Pre Access Token Creation**: Before access token is created
+- **Complement Token**: Add custom claims to tokens
+- **Customize SAML Response**: Modify SAML response attributes
+
+### 3. Trigger
+
+The specific event within a flow type that executes the action.
+
+## Action Configuration
+
+Each action has the following configuration:
+
+| Property | Description |
+|----------|-------------|
+| **Name** | Unique identifier for the action |
+| **Script** | JavaScript code to execute |
+| **Timeout** | Maximum execution time (in seconds) |
+| **Allowed to Fail** | Whether the flow continues if action fails |
+
+## Creating Actions
+
+Actions are created and managed through the ZITADEL Console or Management API.
+
+<Tabs groupId="create-method">
+<TabItem value="console" label="Console">
+
+1. Navigate to your organization in ZITADEL Console
+2. Go to "Actions" in the navigation
+3. Click "New"
+4. Configure the action:
+   - **Name**: Give your action a descriptive name
+   - **Script**: Write your JavaScript code
+   - **Timeout**: Set execution timeout (e.g., 10s)
+   - **Allowed to Fail**: Toggle whether flow continues on error
+5. Save the action
+6. Assign the action to a flow type and trigger
+
+</TabItem>
+<TabItem value="api" label="API">
+
+```bash
+curl -X POST "https://${CUSTOM_DOMAIN}/management/v1/actions" \
+  -H "Authorization: Bearer ${PAT}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "assign-default-role",
+    "script": "function assignDefaultRole(ctx, api) {\n  api.v1.user.appendUserGrant({\n    projectId: '"'"'PROJECT_ID'"'"',\n    roles: ['"'"'user'"'"']\n  });\n}",
+    "timeout": "10s",
+    "allowedToFail": false
+  }'
+```
+
+</TabItem>
+</Tabs>
+
+## Assigning Actions to Flows
+
+After creating an action, assign it to a flow:
+
+```bash
+curl -X PUT "https://${CUSTOM_DOMAIN}/management/v1/flows/FLOW_TYPE/trigger/TRIGGER_TYPE" \
+  -H "Authorization: Bearer ${PAT}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "actionIds": ["ACTION_ID"]
+  }'
+```
+
+## Context Object (ctx)
+
+The `ctx` object provides information about the current flow:
+
+### User Context
+
+```javascript
+ctx.user = {
+  id: "USER_ID",
+  userName: "john.doe",
+  firstName: "John",
+  lastName: "Doe",
+  nickName: "Johnny",
+  displayName: "John Doe",
+  preferredLanguage: "en",
+  gender: "male",
+  email: "john.doe@example.com",
+  emailVerified: true,
+  phone: "+1234567890",
+  phoneVerified: true,
+  metadata: {
+    // Custom user metadata
+  },
+  grants: [
+    {
+      projectId: "PROJECT_ID",
+      roles: ["user", "admin"]
+    }
+  ]
+};
+```
+
+### Request Context
+
+```javascript
+ctx.request = {
+  method: "POST",
+  url: "https://api.zitadel.cloud/v2/users",
+  headers: {
+    "Content-Type": "application/json"
+  }
+};
+```
+
+### Authentication Request Context
+
+```javascript
+ctx.authRequest = {
+  id: "AUTH_REQUEST_ID",
+  applicationId: "APP_ID",
+  scopes: ["openid", "profile", "email"],
+  redirectUri: "https://app.example.com/callback",
+  state: "random_state"
+};
+```
+
+## API Object (api)
+
+The `api` object provides methods to interact with ZITADEL and external systems:
+
+### User Management
+
+```javascript
+// Add user grant (assign role)
+api.v1.user.appendUserGrant({
+  projectId: "PROJECT_ID",
+  roles: ["admin"]
+});
+
+// Set user metadata
+api.v1.user.setMetadata({
+  key: "department",
+  value: "Engineering"
+});
+```
+
+### Claims Manipulation
+
+```javascript
+// Add custom claim to token
+api.v1.claims.setClaim("custom_claim", "custom_value");
+
+// Set multiple claims
+api.v1.claims.setClaim("department", ctx.user.metadata.department);
+api.v1.claims.setClaim("employee_id", ctx.user.metadata.employeeId);
+```
+
+### External HTTP Calls
+
+Actions have access to the `zitadel/http` module for making HTTP requests:
+
+```javascript
+function enrichUserData(ctx, api) {
+  const http = require('zitadel/http');
+  
+  // Make HTTP GET request
+  const response = http.fetch('https://api.example.com/users/' + ctx.user.id, {
+    method: 'GET',
+    headers: {
+      'Authorization': 'Bearer API_TOKEN',
+      'Content-Type': 'application/json'
+    }
+  });
+  
+  if (response.status === 200) {
+    const data = response.json();
+    api.v1.user.setMetadata({
+      key: 'external_department',
+      value: data.department
+    });
+  }
+}
+```
+
+### Logging
+
+```javascript
+function logUserLogin(ctx, api) {
+  const log = require('zitadel/log');
+  
+  log.info('User logged in:', {
+    userId: ctx.user.id,
+    userName: ctx.user.userName,
+    timestamp: new Date().toISOString()
+  });
+}
+```
+
+### UUID Generation
+
+```javascript
+function generateCorrelationId(ctx, api) {
+  const uuid = require('zitadel/uuid');
+  
+  const correlationId = uuid.v4();
+  api.v1.claims.setClaim('correlation_id', correlationId);
+}
+```
+
+## Common Use Cases
+
+### Assign Roles Based on Email Domain
+
+```javascript
+function assignRoleByEmail(ctx, api) {
+  const email = ctx.user.email;
+  
+  if (email.endsWith('@admin.example.com')) {
+    api.v1.user.appendUserGrant({
+      projectId: 'PROJECT_ID',
+      roles: ['admin']
+    });
+  } else if (email.endsWith('@example.com')) {
+    api.v1.user.appendUserGrant({
+      projectId: 'PROJECT_ID',
+      roles: ['user']
+    });
+  }
+}
+```
+
+### Validate Email Domain
+
+```javascript
+function validateEmailDomain(ctx, api) {
+  const allowedDomains = ['example.com', 'company.com'];
+  const email = ctx.user.email;
+  const domain = email.split('@')[1];
+  
+  if (!allowedDomains.includes(domain)) {
+    throw new Error('Email domain not allowed');
+  }
+}
+```
+
+### Enrich Token with External Data
+
+```javascript
+function enrichTokenWithExternalData(ctx, api) {
+  const http = require('zitadel/http');
+  
+  const response = http.fetch(
+    'https://api.example.com/employee/' + ctx.user.metadata.employeeId,
+    {
+      method: 'GET',
+      headers: {
+        'Authorization': 'Bearer API_KEY',
+        'Accept': 'application/json'
+      }
+    }
+  );
+  
+  if (response.status === 200) {
+    const employee = response.json();
+    api.v1.claims.setClaim('department', employee.department);
+    api.v1.claims.setClaim('manager_id', employee.managerId);
+    api.v1.claims.setClaim('cost_center', employee.costCenter);
+  }
+}
+```
+
+### Notify External System on User Registration
+
+```javascript
+function notifyOnRegistration(ctx, api) {
+  const http = require('zitadel/http');
+  const log = require('zitadel/log');
+  
+  const payload = {
+    userId: ctx.user.id,
+    email: ctx.user.email,
+    firstName: ctx.user.firstName,
+    lastName: ctx.user.lastName,
+    registeredAt: new Date().toISOString()
+  };
+  
+  const response = http.fetch('https://api.example.com/webhooks/user-registered', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': 'WEBHOOK_SECRET'
+    },
+    body: payload
+  });
+  
+  if (response.status !== 200) {
+    log.error('Failed to notify external system:', response.text());
+  }
+}
+```
+
+### Add User to External System
+
+```javascript
+function syncToExternalSystem(ctx, api) {
+  const http = require('zitadel/http');
+  
+  const userData = {
+    externalId: ctx.user.id,
+    email: ctx.user.email,
+    firstName: ctx.user.firstName,
+    lastName: ctx.user.lastName
+  };
+  
+  const response = http.fetch('https://crm.example.com/api/contacts', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer CRM_API_TOKEN'
+    },
+    body: userData
+  });
+  
+  if (response.status === 201) {
+    const result = response.json();
+    api.v1.user.setMetadata({
+      key: 'crm_contact_id',
+      value: result.id
+    });
+  }
+}
+```
+
+### Map External Identity Provider Groups to Roles
+
+```javascript
+function mapIdpGroupsToRoles(ctx, api) {
+  // Assuming external IdP provides groups in metadata
+  const idpGroups = ctx.user.metadata.idp_groups || [];
+  
+  const roleMapping = {
+    'admins': 'admin',
+    'developers': 'developer',
+    'users': 'user'
+  };
+  
+  const roles = [];
+  idpGroups.forEach(group => {
+    if (roleMapping[group]) {
+      roles.push(roleMapping[group]);
+    }
+  });
+  
+  if (roles.length > 0) {
+    api.v1.user.appendUserGrant({
+      projectId: 'PROJECT_ID',
+      roles: roles
+    });
+  }
+}
+```
+
+## Actions v2 (New)
+
+ZITADEL Actions v2 is the next generation of the Actions feature, providing more flexibility and capabilities:
+
+### Key Differences
+
+**Actions v1:**
+- JavaScript code executed within ZITADEL
+- Limited to specific flow types
+- Synchronous execution
+
+**Actions v2:**
+- External HTTP endpoints (webhooks)
+- Supports request, response, function, and event triggers
+- Can be synchronous or asynchronous
+- More flexible integration options
+
+### Actions v2 Components
+
+1. **Target**: External endpoint configuration
+2. **Execution**: When and which targets to call
+3. **Endpoint**: Your actual service implementation
+
+### Migrating to Actions v2
+
+See [Migrate Actions v1 to Actions v2](/guides/integrate/actions/migrate-from-v1) for detailed migration instructions.
+
+## Action Execution Flow
+
+1. User triggers an authentication or API operation
+2. ZITADEL reaches the configured trigger point in the flow
+3. ZITADEL executes assigned actions in order
+4. Each action runs with the configured timeout
+5. If an action fails:
+   - **Allowed to Fail = false**: Flow stops, error returned to user
+   - **Allowed to Fail = true**: Flow continues to next action
+6. Flow completes or returns error
+
+## Timeouts and Performance
+
+Actions have configurable timeouts to prevent blocking flows:
+
+- **Default timeout**: 10 seconds
+- **Maximum timeout**: 60 seconds
+- **Recommendation**: Keep actions fast (< 3 seconds)
+
+**Performance tips:**
+
+1. Cache external API responses when possible
+2. Use asynchronous operations for non-critical tasks
+3. Implement proper error handling and fallbacks
+4. Monitor action execution times
+5. Set realistic timeouts based on external dependencies
+
+## Error Handling
+
+Actions should handle errors gracefully:
+
+```javascript
+function robustAction(ctx, api) {
+  const http = require('zitadel/http');
+  const log = require('zitadel/log');
+  
+  try {
+    const response = http.fetch('https://api.example.com/data', {
+      method: 'GET',
+      headers: { 'Authorization': 'Bearer TOKEN' }
+    });
+    
+    if (response.status === 200) {
+      const data = response.json();
+      api.v1.claims.setClaim('external_data', data);
+    } else {
+      log.warn('External API returned error:', response.status);
+      // Use default value or skip
+    }
+  } catch (error) {
+    log.error('Action failed:', error.message);
+    // Decide: throw error or continue with defaults
+    if (!allowedToFail) {
+      throw error;
+    }
+  }
+}
+```
+
+## Security Considerations
+
+1. **Validate all inputs**: Never trust data from context without validation
+2. **Secure external calls**: Use HTTPS and authenticate API requests
+3. **Protect sensitive data**: Don't log passwords, tokens, or PII
+4. **Limit permissions**: Actions run with organization-level permissions
+5. **Review action code**: Audit actions before deploying to production
+6. **Use secrets management**: Don't hardcode API keys in action scripts
+7. **Implement rate limiting**: Protect external APIs from abuse
+8. **Handle errors safely**: Don't expose sensitive error details to users
+
+## Testing Actions
+
+Test actions before deploying to production:
+
+1. **Use test users**: Create dedicated test accounts
+2. **Test error scenarios**: Verify behavior when external systems are down
+3. **Check timeouts**: Ensure actions complete within timeout limits
+4. **Validate outputs**: Verify claims and metadata are set correctly
+5. **Monitor logs**: Review action execution logs for errors
+6. **Test rollback**: Verify "allowed to fail" behavior works as expected
+
+## Debugging Actions
+
+Use logging to debug action execution:
+
+```javascript
+function debugAction(ctx, api) {
+  const log = require('zitadel/log');
+  
+  log.info('Action started', {
+    userId: ctx.user.id,
+    userName: ctx.user.userName
+  });
+  
+  // Your action logic
+  
+  log.info('Action completed successfully');
+}
+```
+
+View action logs in the ZITADEL Console under Organization > Actions > Logs.
+
+## Best Practices
+
+1. **Keep actions focused**: Each action should do one thing well
+2. **Use descriptive names**: Name actions clearly to indicate their purpose
+3. **Document your code**: Add comments explaining complex logic
+4. **Handle failures gracefully**: Use try-catch and set "allowed to fail" appropriately
+5. **Optimize performance**: Minimize external API calls and execution time
+6. **Version your actions**: Keep track of changes to action scripts
+7. **Test thoroughly**: Validate actions in development before production
+8. **Monitor execution**: Track action performance and error rates
+9. **Use actions sparingly**: Don't add unnecessary complexity to flows
+10. **Consider Actions v2**: Evaluate whether webhook-based actions are better for your use case
+
+## Limitations
+
+- Actions are executed synchronously during the authentication flow
+- JavaScript runtime is sandboxed (limited access to Node.js APIs)
+- Maximum script size: 100 KB
+- No access to filesystem or database
+- HTTP calls are subject to configured deny lists
+- Actions run within quota limits (execution time and requests)
+
+## Resources
+
+- [Actions Concepts](/concepts/features/actions)
+- [Actions Reference](/guides/manage/console/actions-overview)
+- [Actions Marketplace](https://github.com/zitadel/actions)
+- [Actions Code Examples](/apis/actions/code-examples)
+- [Actions v2 Documentation](/concepts/features/actions_v2)
+- [Migrate to Actions v2](/guides/integrate/actions/migrate-from-v1)

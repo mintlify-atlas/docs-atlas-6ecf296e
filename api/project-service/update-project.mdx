@@ -1,0 +1,84 @@
+---
+title: Update Project
+description: Update an existing project's settings
+---
+
+## Endpoint
+
+```
+PATCH /v2/projects/{project_id}
+```
+
+## Description
+
+Update an existing project. All fields are optional; only provided fields will be updated.
+
+## Required Permission
+
+- `project.write`
+
+## Path Parameters
+
+<ParamField path="project_id" type="string" required>
+  The unique identifier of the project to be updated.
+  
+  **Min Length:** 1  
+  **Max Length:** 200
+</ParamField>
+
+## Request Body
+
+<ParamField body="name" type="string">
+  Updated name of the project. If omitted, the name will remain unchanged.
+  
+  **Min Length:** 1  
+  **Max Length:** 200
+</ParamField>
+
+<ParamField body="projectRoleAssertion" type="boolean">
+  Enable/disable role information in the user info endpoint. If omitted, the setting will remain unchanged.
+</ParamField>
+
+<ParamField body="authorizationRequired" type="boolean">
+  Enable/disable authorization checks when logging in. If omitted, the setting will remain unchanged.
+</ParamField>
+
+<ParamField body="projectAccessRequired" type="boolean">
+  Enable/disable organization access checks. If omitted, the setting will remain unchanged.
+</ParamField>
+
+<ParamField body="privateLabelingSetting" type="string">
+  Update the private labeling setting. If omitted, the setting will remain unchanged.
+</ParamField>
+
+## Response
+
+<ResponseField name="changeDate" type="timestamp">
+  The timestamp of the change to the project.
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X PATCH https://your-domain.zitadel.cloud/v2/projects/69629012906488334 \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My Updated Project",
+    "projectRoleAssertion": true
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "changeDate": "2025-01-23T10:34:18.051Z"
+}
+```
+
+## Error Responses
+
+- `404 Not Found` - Project not found
+- `400 Bad Request` - Invalid request data
+- `403 Forbidden` - Insufficient permissions

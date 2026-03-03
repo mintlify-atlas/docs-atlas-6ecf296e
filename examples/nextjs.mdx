@@ -1,0 +1,304 @@
+---
+title: Next.js Example
+description: Integrate ZITADEL authentication into Next.js applications using the OAuth 2.0 PKCE flow.
+---
+
+# Next.js Example
+
+Learn how to integrate ZITADEL authentication into a Next.js application using the secure OAuth 2.0 PKCE flow with NextAuth.js.
+
+## Overview
+
+[Next.js](https://nextjs.org) is a React framework for building full-stack web applications. This example demonstrates user authentication, session management, protected routes, and federated logout.
+
+### Auth Library
+
+This example uses **[next-auth](https://www.npmjs.com/package/next-auth)** (Auth.js) with **[openid-client](https://www.npmjs.com/package/openid-client)** to implement OpenID Connect authentication with PKCE.
+
+## What You'll Build
+
+- Public landing page with sign-in button
+- PKCE authentication flow with ZITADEL
+- Protected profile page displaying user information and claims
+- JWT-based session management with automatic token refresh
+- Federated logout that terminates both local and ZITADEL sessions
+
+## Prerequisites
+
+Before starting, create a PKCE application in the [ZITADEL Console](https://zitadel.com/docs/guides/manage/console/console-overview):
+
+1. Create a new **Web application** in your ZITADEL project
+2. Select **PKCE** as the authentication method
+3. Configure redirect URIs:
+   - Development: `http://localhost:3000/api/auth/callback/zitadel`
+4. Configure post-logout redirect URIs:
+   - Development: `http://localhost:3000/api/auth/logout/callback`
+5. Copy your **Client ID**
+6. Enable **refresh tokens** in Token Settings (optional, for long-lived sessions)
+
+<Callout type="warning">
+Enable **Dev Mode** in ZITADEL Console when using HTTP URLs during local development. Always use HTTPS in production.
+</Callout>
+
+## Installation
+
+Clone the example repository:
+
+```bash
+git clone https://github.com/zitadel/example-auth-nextjs.git
+cd example-auth-nextjs
+```
+
+Install dependencies:
+
+<CodeGroup>
+```bash npm
+npm install
+```
+
+```bash pnpm
+pnpm install
+```
+
+```bash yarn
+yarn install
+```
+</CodeGroup>
+
+## Configuration
+
+Create a `.env.local` file:
+
+```bash
+cp .env.example .env.local
+```
+
+Configure the environment variables:
+
+```env
+NODE_ENV=development
+PORT=3000
+
+# Session configuration
+SESSION_SECRET=your-very-secret-and-strong-session-key
+SESSION_DURATION=3600
+
+# ZITADEL configuration
+ZITADEL_DOMAIN=https://your-instance.zitadel.cloud
+ZITADEL_CLIENT_ID=your-client-id
+ZITADEL_CLIENT_SECRET=random-secret-for-nextauth
+ZITADEL_CALLBACK_URL=http://localhost:3000/api/auth/callback/zitadel
+ZITADEL_POST_LOGIN_URL=/profile
+ZITADEL_POST_LOGOUT_URL=http://localhost:3000/api/auth/logout/callback
+
+# NextAuth configuration
+NEXTAUTH_URL=http://localhost:3000
+```
+
+**Generate secrets:**
+
+```bash
+# Generate SESSION_SECRET
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+# Generate ZITADEL_CLIENT_SECRET (required by NextAuth even for PKCE)
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+## Implementation
+
+### Configure NextAuth.js
+
+Create `app/api/auth/[...nextauth]/route.ts`:
+
+```typescript
+import NextAuth from "next-auth";
+import type { NextAuthOptions } from "next-auth";
+
+const authOptions: NextAuthOptions = {
+  providers: [
+    {
+      id: "zitadel",
+      name: "ZITADEL",
+      type: "oauth",
+      issuer: process.env.ZITADEL_DOMAIN,
+      clientId: process.env.ZITADEL_CLIENT_ID!,
+      clientSecret: process.env.ZITADEL_CLIENT_SECRET!,
+      wellKnown: `${process.env.ZITADEL_DOMAIN}/.well-known/openid-configuration`,
+      authorization: {
+        params: {
+          scope: "openid profile email offline_access",
+        },
+      },
+      checks: ["pkce"],
+      profile(profile) {
+        return {
+          id: profile.sub,
+          name: profile.name,
+          email: profile.email,
+          image: profile.picture,
+        };
+      },
+    },
+  ],
+  session: {
+    strategy: "jwt",
+    maxAge: parseInt(process.env.SESSION_DURATION || "3600"),
+  },
+  callbacks: {
+    async jwt({ token, account }) {
+      if (account) {
+        token.accessToken = account.access_token;
+        token.idToken = account.id_token;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      session.accessToken = token.accessToken as string;
+      return session;
+    },
+  },
+};
+
+const handler = NextAuth(authOptions);
+export { handler as GET, handler as POST };
+```
+
+### Protected Page
+
+Create `app/profile/page.tsx`:
+
+```typescript
+import { getServerSession } from "next-auth";
+import { redirect } from "next/navigation";
+
+export default async function ProfilePage() {
+  const session = await getServerSession();
+
+  if (!session) {
+    redirect("/api/auth/signin");
+  }
+
+  return (
+    <div className="container">
+      <h1>Profile</h1>
+      <div className="profile-info">
+        <p><strong>Name:</strong> {session.user?.name}</p>
+        <p><strong>Email:</strong> {session.user?.email}</p>
+        <p><strong>ID:</strong> {session.user?.id}</p>
+      </div>
+      <a href="/api/auth/signout">Sign Out</a>
+    </div>
+  );
+}
+```
+
+### Landing Page
+
+Create `app/page.tsx`:
+
+```typescript
+import { getServerSession } from "next-auth";
+import Link from "next/link";
+
+export default async function HomePage() {
+  const session = await getServerSession();
+
+  return (
+    <div className="container">
+      <h1>Welcome to ZITADEL + Next.js</h1>
+      {session ? (
+        <div>
+          <p>Signed in as {session.user?.email}</p>
+          <Link href="/profile">View Profile</Link>
+        </div>
+      ) : (
+        <div>
+          <p>You are not signed in</p>
+          <a href="/api/auth/signin">Sign In</a>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+## Run the Application
+
+Start the development server:
+
+<CodeGroup>
+```bash npm
+npm run dev
+```
+
+```bash pnpm
+pnpm dev
+```
+
+```bash yarn
+yarn dev
+```
+</CodeGroup>
+
+Open `http://localhost:3000` in your browser.
+
+## Testing the Flow
+
+1. Click **Sign In** on the home page
+2. You'll be redirected to ZITADEL for authentication
+3. After successful login, you'll return to the profile page
+4. The profile page displays your user information
+5. Click **Sign Out** to test federated logout
+
+## Advanced Features
+
+### Access Tokens
+
+Access the token in server components:
+
+```typescript
+import { getServerSession } from "next-auth";
+
+const session = await getServerSession();
+const accessToken = session?.accessToken;
+
+// Use token to call ZITADEL API
+const response = await fetch(
+  `${process.env.ZITADEL_DOMAIN}/v2/users/me`,
+  {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  }
+);
+```
+
+### Role-Based Access
+
+Extend the JWT callback to include roles:
+
+```typescript
+callbacks: {
+  async jwt({ token, account, profile }) {
+    if (profile) {
+      token.roles = profile["urn:zitadel:iam:org:project:roles"];
+    }
+    return token;
+  },
+}
+```
+
+## Resources
+
+- [Example Repository](https://github.com/zitadel/example-auth-nextjs)
+- [Next.js Documentation](https://nextjs.org/docs)
+- [NextAuth.js Documentation](https://next-auth.js.org/)
+- [ZITADEL OIDC Guide](/integration/oidc)
+- [PKCE Specification](https://oauth.net/2/pkce/)
+
+## Next Steps
+
+- [Explore other framework examples](/examples/react)
+- [Learn about OIDC scopes](/integration/oidc)
+- [Set up role-based authorization](/concepts/authorization)

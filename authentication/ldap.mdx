@@ -1,0 +1,545 @@
+---
+title: LDAP Authentication
+description: Integrate LDAP directories with ZITADEL to enable authentication against enterprise directory services like Active Directory, OpenLDAP, and FreeIPA.
+---
+
+ZITADEL supports LDAP (Lightweight Directory Access Protocol) authentication, allowing users to authenticate using their existing enterprise directory credentials from Active Directory, OpenLDAP, FreeIPA, and other LDAP-compliant directory services.
+
+## Overview
+
+LDAP integration enables:
+
+- Authentication against existing enterprise directories
+- User attribute synchronization from LDAP to ZITADEL
+- Support for Active Directory, OpenLDAP, FreeIPA, and other LDAP servers
+- Flexible attribute mapping
+- TLS/StartTLS support for secure communication
+- Automatic user creation and updates
+
+## LDAP Provider Configuration
+
+The LDAP provider acts as an identity provider in ZITADEL, similar to social login providers but authenticating against your LDAP directory.
+
+### Configuration Parameters
+
+**Name**: Display name for the LDAP provider (shown in Login UI)
+
+**Servers**: List of LDAP server addresses (e.g., `ldap.example.com:389`)
+
+**StartTLS**: Enable StartTLS for encrypted communication (default: enabled)
+
+**Base DN**: Base Distinguished Name for LDAP searches (e.g., `dc=example,dc=com`)
+
+**Bind DN**: DN of the service account used for LDAP binds (e.g., `cn=zitadel,ou=services,dc=example,dc=com`)
+
+**Bind Password**: Password for the bind DN account
+
+**User Base DN**: Base DN for user searches (e.g., `ou=users,dc=example,dc=com`)
+
+**User Object Classes**: Object classes for user entries (e.g., `["inetOrgPerson", "organizationalPerson"]`)
+
+**User Filters**: Additional LDAP filters for user searches (optional)
+
+**Timeout**: Connection timeout for LDAP operations
+
+### Provider Implementation
+
+```go
+// From internal/idp/providers/ldap/ldap.go
+const DefaultPort = "389"
+
+type Provider struct {
+    name              string
+    servers           []string
+    startTLS          bool
+    baseDN            string
+    bindDN            string
+    bindPassword      string
+    userBase          string
+    userObjectClasses []string
+    userFilters       []string
+    timeout           time.Duration
+    rootCA            []byte
+    
+    isLinkingAllowed  bool
+    isCreationAllowed bool
+    isAutoCreation    bool
+    isAutoUpdate      bool
+    
+    // Attribute mappings
+    idAttribute                string
+    firstNameAttribute         string
+    lastNameAttribute          string
+    displayNameAttribute       string
+    nickNameAttribute          string
+    preferredUsernameAttribute string
+    emailAttribute             string
+    emailVerifiedAttribute     string
+    phoneAttribute             string
+    phoneVerifiedAttribute     string
+    preferredLanguageAttribute string
+    avatarURLAttribute         string
+    profileAttribute           string
+}
+```
+
+## Setting Up LDAP Integration
+
+### Prerequisites
+
+<Steps>
+
+<Step title="LDAP Server Access">
+Ensure network connectivity to your LDAP server from ZITADEL
+</Step>
+
+<Step title="Service Account">
+Create a service account in LDAP with read access to user entries
+</Step>
+
+<Step title="TLS Certificate (Optional)">
+If using StartTLS or LDAPS, prepare the CA certificate
+</Step>
+
+<Step title="Attribute Mapping">
+Identify which LDAP attributes map to ZITADEL user fields
+</Step>
+
+</Steps>
+
+### Configuration via Console
+
+<Steps>
+
+<Step title="Enable External IdP">
+Navigate to Instance/Organization Settings > Login Policy and enable **Allow External IdP**
+</Step>
+
+<Step title="Add LDAP Provider">
+1. Go to Identity Providers
+2. Click **Add Provider**
+3. Select **LDAP** template
+</Step>
+
+<Step title="Configure Connection">
+Enter LDAP server details:
+```
+Name: Active Directory
+Servers: ad.example.com:389
+Base DN: dc=example,dc=com
+Bind DN: cn=zitadel,ou=services,dc=example,dc=com
+Bind Password: ********
+User Base DN: ou=users,dc=example,dc=com
+User Object Classes: person, organizationalPerson, user
+```
+</Step>
+
+<Step title="Configure Attribute Mapping">
+Map LDAP attributes to ZITADEL user fields:
+```
+ID Attribute: objectGUID
+First Name: givenName
+Last Name: sn
+Display Name: displayName
+Email: mail
+Preferred Username: sAMAccountName
+```
+</Step>
+
+<Step title="Set Provider Options">
+- ✓ Allow Linking
+- ✓ Allow Creation
+- ✓ Auto Creation (optional)
+- ✓ Auto Update
+</Step>
+
+<Step title="Test Connection">
+Test LDAP connectivity and attribute retrieval
+</Step>
+
+<Step title="Add to Login Policy">
+Add the LDAP provider to your login policy to make it available at login
+</Step>
+
+</Steps>
+
+### Configuration via API
+
+```bash
+curl -X POST https://$ZITADEL_DOMAIN/admin/v1/idps/ldap \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Active Directory",
+    "servers": ["ad.example.com:389"],
+    "startTls": true,
+    "baseDn": "dc=example,dc=com",
+    "bindDn": "cn=zitadel,ou=services,dc=example,dc=com",
+    "bindPassword": "your-bind-password",
+    "userBase": "ou=users,dc=example,dc=com",
+    "userObjectClasses": ["person", "organizationalPerson", "user"],
+    "userFilters": ["(!(userAccountControl:1.2.840.113556.1.4.803:=2))"],
+    "attributes": {
+      "idAttribute": "objectGUID",
+      "firstNameAttribute": "givenName",
+      "lastNameAttribute": "sn",
+      "displayNameAttribute": "displayName",
+      "emailAttribute": "mail",
+      "preferredUsernameAttribute": "sAMAccountName"
+    },
+    "options": {
+      "isLinkingAllowed": true,
+      "isCreationAllowed": true,
+      "isAutoCreation": true,
+      "isAutoUpdate": true
+    }
+  }'
+```
+
+## Attribute Mapping
+
+### Common LDAP Attributes
+
+#### Active Directory
+
+| ZITADEL Field | AD Attribute | Description |
+|---------------|--------------|-------------|
+| ID | objectGUID | Unique user identifier |
+| Username | sAMAccountName | Windows login name |
+| Email | mail | Email address |
+| First Name | givenName | Given name |
+| Last Name | sn | Surname |
+| Display Name | displayName | Full display name |
+| Phone | telephoneNumber | Phone number |
+| Avatar URL | thumbnailPhoto | User photo (base64) |
+
+#### OpenLDAP / FreeIPA
+
+| ZITADEL Field | LDAP Attribute | Description |
+|---------------|----------------|-------------|
+| ID | entryUUID | Unique entry identifier |
+| Username | uid | User identifier |
+| Email | mail | Email address |
+| First Name | givenName | Given name |
+| Last Name | sn | Surname |
+| Display Name | cn | Common name |
+| Phone | telephoneNumber | Phone number |
+
+### Custom Attribute Mapping
+
+You can map any LDAP attribute to ZITADEL user fields:
+
+```go
+// Available mapping options
+WithCustomIDAttribute(name string)          // Custom unique ID attribute
+WithFirstNameAttribute(name string)         // First name
+WithLastNameAttribute(name string)          // Last name
+WithDisplayNameAttribute(name string)       // Display name
+WithNickNameAttribute(name string)          // Nickname
+WithPreferredUsernameAttribute(name string) // Preferred username
+WithEmailAttribute(name string)             // Email address
+WithEmailVerifiedAttribute(name string)     // Email verified flag
+WithPhoneAttribute(name string)             // Phone number
+WithPhoneVerifiedAttribute(name string)     // Phone verified flag
+WithPreferredLanguageAttribute(name string) // Preferred language
+WithAvatarURLAttribute(name string)         // Avatar/photo URL
+WithProfileAttribute(name string)           // Profile URL
+```
+
+## TLS/SSL Configuration
+
+Secure your LDAP connection:
+
+### StartTLS (Recommended)
+
+StartTLS upgrades an existing LDAP connection to TLS:
+
+```go
+// StartTLS is enabled by default
+provider := ldap.New(
+    name,
+    servers,
+    baseDN,
+    bindDN,
+    bindPassword,
+    userBase,
+    userObjectClasses,
+    userFilters,
+    timeout,
+    rootCA,  // CA certificate for verification
+    loginUrl,
+)
+```
+
+To disable StartTLS (not recommended for production):
+
+```go
+provider := ldap.New(
+    // ... parameters
+    ldap.WithoutStartTLS(),
+)
+```
+
+### LDAPS (LDAP over SSL)
+
+Connect to LDAPS port (636) for TLS from the start:
+
+```
+Servers: ldaps.example.com:636
+```
+
+### Custom CA Certificate
+
+For self-signed or internal CA certificates:
+
+```bash
+# Upload CA certificate when configuring the provider
+Root CA Certificate: |
+  -----BEGIN CERTIFICATE-----
+  MIIDXTCCAkWgAwIBAgIJAK...
+  -----END CERTIFICATE-----
+```
+
+## Authentication Flow
+
+<Steps>
+
+<Step title="User Initiates LDAP Login">
+User clicks "Sign in with LDAP" or enters credentials at LDAP-enabled login prompt
+</Step>
+
+<Step title="Username Entry">
+User enters their LDAP username (e.g., sAMAccountName or uid)
+</Step>
+
+<Step title="Password Submission">
+User submits their LDAP password
+</Step>
+
+<Step title="LDAP Bind">
+ZITADEL attempts to bind to the LDAP server using the provided credentials:
+1. Searches for user DN based on username
+2. Binds with user DN and password
+</Step>
+
+<Step title="Attribute Retrieval">
+On successful bind, ZITADEL retrieves user attributes from LDAP
+</Step>
+
+<Step title="User Provisioning">
+Based on configuration:
+- **Auto Creation**: Creates new ZITADEL user if not exists
+- **Auto Update**: Updates existing user attributes
+- **Manual Linking**: Prompts to link to existing account
+</Step>
+
+<Step title="Session Creation">
+ZITADEL creates an authenticated session and redirects to the application
+</Step>
+
+</Steps>
+
+## User Provisioning Options
+
+### Auto Creation
+
+When enabled, ZITADEL automatically creates a new user account on first LDAP login:
+
+```go
+WithAutoCreation() // Enable automatic user creation
+```
+
+**Use Case**: Ideal for organizations where all LDAP users should have ZITADEL access.
+
+### Manual Creation
+
+When auto creation is disabled:
+
+```go
+WithCreationAllowed() // Allow users to create account manually
+```
+
+**Use Case**: Controlled access where only specific users should access ZITADEL.
+
+### Auto Update
+
+Automatically sync user attributes from LDAP on each login:
+
+```go
+WithAutoUpdate() // Enable automatic attribute updates
+```
+
+**Use Case**: Keep user information synchronized with the source directory.
+
+### Account Linking
+
+Allow users to link LDAP identity to existing ZITADEL accounts:
+
+```go
+WithLinkingAllowed() // Enable manual account linking
+```
+
+**Use Case**: Users who already have ZITADEL accounts created via other methods.
+
+## Active Directory Configuration
+
+### Example Configuration
+
+```json
+{
+  "name": "Corporate Active Directory",
+  "servers": ["ad1.corp.example.com:389", "ad2.corp.example.com:389"],
+  "startTls": true,
+  "baseDn": "dc=corp,dc=example,dc=com",
+  "bindDn": "cn=ZITADEL Service,ou=Service Accounts,dc=corp,dc=example,dc=com",
+  "bindPassword": "SecureBindPassword123",
+  "userBase": "ou=Users,dc=corp,dc=example,dc=com",
+  "userObjectClasses": ["person", "organizationalPerson", "user"],
+  "userFilters": [
+    "(!(userAccountControl:1.2.840.113556.1.4.803:=2))"
+  ],
+  "attributes": {
+    "idAttribute": "objectGUID",
+    "firstNameAttribute": "givenName",
+    "lastNameAttribute": "sn",
+    "displayNameAttribute": "displayName",
+    "emailAttribute": "mail",
+    "preferredUsernameAttribute": "sAMAccountName",
+    "phoneAttribute": "telephoneNumber"
+  }
+}
+```
+
+### Common AD Filters
+
+Exclude disabled accounts:
+```
+(!(userAccountControl:1.2.840.113556.1.4.803:=2))
+```
+
+Include only specific groups:
+```
+(memberOf=cn=ZitadelUsers,ou=Groups,dc=corp,dc=example,dc=com)
+```
+
+Exclude service accounts:
+```
+(&(!(userAccountControl:1.2.840.113556.1.4.803:=2))(!(cn=*Service*)))
+```
+
+## OpenLDAP Configuration
+
+### Example Configuration
+
+```json
+{
+  "name": "OpenLDAP Directory",
+  "servers": ["ldap.example.com:389"],
+  "startTls": true,
+  "baseDn": "dc=example,dc=com",
+  "bindDn": "cn=zitadel,ou=services,dc=example,dc=com",
+  "bindPassword": "BindPassword123",
+  "userBase": "ou=people,dc=example,dc=com",
+  "userObjectClasses": ["inetOrgPerson", "posixAccount"],
+  "attributes": {
+    "idAttribute": "entryUUID",
+    "firstNameAttribute": "givenName",
+    "lastNameAttribute": "sn",
+    "displayNameAttribute": "cn",
+    "emailAttribute": "mail",
+    "preferredUsernameAttribute": "uid"
+  }
+}
+```
+
+## Troubleshooting
+
+### Connection Issues
+
+**Test LDAP connectivity**:
+```bash
+ldapsearch -H ldap://ad.example.com:389 \
+  -D "cn=zitadel,ou=services,dc=example,dc=com" \
+  -w BindPassword \
+  -b "dc=example,dc=com" \
+  "(sAMAccountName=testuser)"
+```
+
+**Common issues**:
+- Firewall blocking LDAP port (389/636)
+- Incorrect bind DN or password
+- Network routing issues
+- DNS resolution problems
+
+### Authentication Failures
+
+**User not found**:
+- Verify user base DN is correct
+- Check user object classes match
+- Confirm user filters don't exclude the user
+- Test LDAP search manually
+
+**Bind fails**:
+- Verify user DN is constructed correctly
+- Check password is correct
+- Ensure account is not locked or disabled
+- Verify account has necessary permissions
+
+### Attribute Mapping Issues
+
+**Missing attributes**:
+- Verify attributes exist in LDAP user entry
+- Check attribute names match exactly (case-sensitive)
+- Ensure bind account has permission to read attributes
+- Test with ldapsearch to confirm attribute values
+
+### TLS/SSL Issues
+
+**Certificate verification fails**:
+- Verify CA certificate is correct
+- Check certificate hasn't expired
+- Ensure hostname matches certificate CN/SAN
+- Test with `openssl s_client`
+
+```bash
+openssl s_client -connect ad.example.com:636 -showcerts
+```
+
+## Security Best Practices
+
+<Warning>
+**Bind Account Security**: Use a dedicated service account with minimal permissions (read-only access to user attributes). Never use a privileged account.
+</Warning>
+
+<Note>
+**Always Use TLS**: Enable StartTLS or LDAPS in production to encrypt credentials in transit.
+</Note>
+
+<Note>
+**Rotate Credentials**: Regularly rotate the bind account password and update ZITADEL configuration.
+</Note>
+
+### Recommendations
+
+1. **Principle of Least Privilege**: Grant only necessary permissions to the bind account
+2. **Network Segmentation**: Restrict network access to LDAP servers
+3. **Monitor Authentication**: Track LDAP authentication attempts and failures
+4. **Regular Audits**: Review LDAP provider configuration and access patterns
+5. **Certificate Management**: Keep TLS certificates up to date
+
+## Multi-Tenancy with LDAP
+
+In multi-tenant deployments:
+
+- Configure LDAP providers at **Organization** level for tenant-specific directories
+- Use different bind accounts per tenant for isolation
+- Implement user base DN per organization (e.g., `ou=tenant1,ou=users,dc=example,dc=com`)
+- Apply organization-specific attribute mappings
+
+## Related Documentation
+
+- [Identity Provider Introduction](/guides/integrate/identity-providers/introduction)
+- [LDAP Integration Guide](/guides/integrate/identity-providers/ldap)
+- [Social Login](/authentication/social-login)
+- [Identity Brokering](/concepts/features/identity-brokering)
+- [Login Policy Configuration](/guides/manage/console/default-settings)

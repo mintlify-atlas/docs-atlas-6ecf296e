@@ -1,0 +1,63 @@
+---
+title: SDKs Overview
+description: Comprehensive SDKs for integrating ZITADEL into your applications across multiple programming languages and platforms.
+---
+
+# SDKs Overview
+
+ZITADEL provides official SDKs and client libraries to help you integrate identity and access management into your applications. Our SDKs are designed to simplify authentication, user management, and API interactions across different programming languages and frameworks.
+
+## Available SDKs
+
+### JavaScript/TypeScript SDK
+Our JavaScript SDK (`@zitadel/client`) provides a modern, type-safe way to interact with ZITADEL's APIs from Node.js and browser environments. Built on connectRPC and gRPC-web, it offers first-class TypeScript support and seamless integration with popular frameworks.
+
+[Learn more about the JavaScript SDK](/sdks/javascript)
+
+### Go SDK
+The official Go SDK (`zitadel-go`) wraps the ZITADEL OIDC library and provides idiomatic Go patterns for authentication, API access, and resource management. Perfect for building backend services and APIs.
+
+[Learn more about the Go SDK](/sdks/go)
+
+### Python SDK
+Our Python client library enables programmatic management of ZITADEL resources from Python applications. It supports multiple authentication methods and provides a Pythonic interface to the Management API.
+
+[Learn more about the Python SDK](/sdks/python)
+
+### .NET SDK
+Integrate ZITADEL into ASP.NET Core applications using our .NET SDK and the built-in OpenID Connect middleware. Supports modern authentication flows with minimal configuration.
+
+[Learn more about the .NET SDK](/sdks/dotnet)
+
+## SDK Features
+
+All ZITADEL SDKs provide:
+
+- **OpenID Connect (OIDC) Support**: Implement secure authentication flows including PKCE, authorization code, and client credentials
+- **API Access**: Programmatic access to ZITADEL's Management API for user, organization, and project management
+- **Type Safety**: Strongly-typed clients generated from protocol buffers
+- **Authentication Methods**: Support for service accounts, personal access tokens, and OAuth flows
+- **Token Management**: Automatic token refresh and session handling
+
+## Choosing an SDK
+
+Select the SDK that matches your application's primary language:
+
+- **JavaScript/Node.js applications**: Use the JavaScript SDK
+- **Go services and APIs**: Use the Go SDK  
+- **Python backends**: Use the Python SDK
+- **ASP.NET Core applications**: Use the .NET SDK
+
+## Need Help?
+
+If you don't find an SDK for your language, you can:
+
+1. Use any standard OIDC library for authentication (see our [Examples](/examples/nextjs))
+2. Generate a gRPC client using [buf](https://buf.build) from our protocol definitions
+3. Access the REST API directly using the [API Reference](/api/overview)
+
+## Next Steps
+
+- [Set up your first application](/quickstart)
+- [Explore framework examples](/examples/nextjs)
+- [Read the API documentation](/api/overview)

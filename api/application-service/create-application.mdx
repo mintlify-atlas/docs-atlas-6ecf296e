@@ -1,0 +1,209 @@
+---
+title: Create Application
+description: Create a new OIDC, API, or SAML application
+---
+
+## Endpoint
+
+```
+POST /v2/applications
+```
+
+## Description
+
+Create an application. The application can be OIDC, API, or SAML type, based on the input.
+
+## Required Permission
+
+- `project.app.write`
+
+## Request Body
+
+<ParamField body="projectId" type="string" required>
+  The ID of the project the application will be created in.
+  
+  **Min Length:** 1  
+  **Max Length:** 200
+</ParamField>
+
+<ParamField body="applicationId" type="string">
+  Optional unique ID of the new application. If omitted, the system will generate one (recommended).
+  
+  **Max Length:** 200
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Publicly visible name of the application. This might be presented to users during sign-in.
+  
+  **Min Length:** 1  
+  **Max Length:** 200
+</ParamField>
+
+<ParamField body="oidcConfiguration" type="object">
+  Configuration for OIDC applications.
+  
+  <ParamField body="redirectUris" type="array">
+    Allowed callback URIs for OAuth2/OIDC flows.
+  </ParamField>
+  
+  <ParamField body="responseTypes" type="array">
+    Response types: `OIDC_RESPONSE_TYPE_CODE`, `OIDC_RESPONSE_TYPE_ID_TOKEN`, `OIDC_RESPONSE_TYPE_ID_TOKEN_TOKEN`.
+  </ParamField>
+  
+  <ParamField body="grantTypes" type="array">
+    Grant types: `OIDC_GRANT_TYPE_AUTHORIZATION_CODE`, `OIDC_GRANT_TYPE_IMPLICIT`, `OIDC_GRANT_TYPE_REFRESH_TOKEN`, etc.
+  </ParamField>
+  
+  <ParamField body="applicationType" type="string">
+    Application type: `OIDC_APPLICATION_TYPE_WEB`, `OIDC_APPLICATION_TYPE_USER_AGENT`, `OIDC_APPLICATION_TYPE_NATIVE`.
+  </ParamField>
+  
+  <ParamField body="authMethodType" type="string">
+    Auth method: `OIDC_AUTH_METHOD_TYPE_BASIC`, `OIDC_AUTH_METHOD_TYPE_POST`, `OIDC_AUTH_METHOD_TYPE_NONE`, `OIDC_AUTH_METHOD_TYPE_PRIVATE_KEY_JWT`.
+  </ParamField>
+  
+  <ParamField body="postLogoutRedirectUris" type="array">
+    Allowed URIs to redirect to after logout.
+  </ParamField>
+  
+  <ParamField body="version" type="string">
+    OIDC version (currently only 1.0 supported).
+  </ParamField>
+  
+  <ParamField body="developmentMode" type="boolean">
+    Enable for development (allows non-compliant settings).
+  </ParamField>
+  
+  <ParamField body="accessTokenType" type="string">
+    Access token type: `OIDC_TOKEN_TYPE_BEARER` or `OIDC_TOKEN_TYPE_JWT`.
+  </ParamField>
+  
+  <ParamField body="accessTokenRoleAssertion" type="boolean">
+    Include roles in access token.
+  </ParamField>
+  
+  <ParamField body="idTokenRoleAssertion" type="boolean">
+    Include roles in ID token.
+  </ParamField>
+  
+  <ParamField body="idTokenUserinfoAssertion" type="boolean">
+    Include userinfo claims in ID token.
+  </ParamField>
+  
+  <ParamField body="clockSkew" type="duration">
+    Clock skew compensation (max 5s).
+  </ParamField>
+  
+  <ParamField body="additionalOrigins" type="array">
+    Additional allowed origins.
+  </ParamField>
+  
+  <ParamField body="skipNativeAppSuccessPage" type="boolean">
+    Skip success page for native apps.
+  </ParamField>
+</ParamField>
+
+<ParamField body="samlConfiguration" type="object">
+  Configuration for SAML applications.
+  
+  <ParamField body="metadataXml" type="bytes">
+    SAML metadata as XML.
+  </ParamField>
+  
+  <ParamField body="metadataUrl" type="string">
+    URL to fetch SAML metadata from.
+  </ParamField>
+</ParamField>
+
+<ParamField body="apiConfiguration" type="object">
+  Configuration for API applications.
+  
+  <ParamField body="authMethodType" type="string">
+    Auth method: `API_AUTH_METHOD_TYPE_BASIC` or `API_AUTH_METHOD_TYPE_PRIVATE_KEY_JWT`.
+  </ParamField>
+</ParamField>
+
+## Response
+
+<ResponseField name="applicationId" type="string">
+  The unique ID of the newly created application.
+</ResponseField>
+
+<ResponseField name="creationDate" type="timestamp">
+  The timestamp of the application creation.
+</ResponseField>
+
+<ResponseField name="oidcConfiguration" type="object">
+  OIDC configuration response (if applicable).
+  
+  <ResponseField name="clientId" type="string">
+    OAuth2/OIDC client_id.
+  </ResponseField>
+  
+  <ResponseField name="clientSecret" type="string">
+    Client secret (store safely, cannot be retrieved later).
+  </ResponseField>
+  
+  <ResponseField name="nonCompliant" type="boolean">
+    Whether the config is OIDC compliant.
+  </ResponseField>
+  
+  <ResponseField name="complianceProblems" type="array">
+    List of compliance issues.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="apiConfiguration" type="object">
+  API configuration response (if applicable).
+  
+  <ResponseField name="clientId" type="string">
+    OAuth2 client_id for the API.
+  </ResponseField>
+  
+  <ResponseField name="clientSecret" type="string">
+    Client secret (if using basic auth).
+  </ResponseField>
+</ResponseField>
+
+## Example Request - OIDC Web Application
+
+```bash
+curl -X POST https://your-domain.zitadel.cloud/v2/applications \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "projectId": "69629026806489455",
+    "name": "My Web App",
+    "oidcConfiguration": {
+      "redirectUris": ["https://myapp.com/callback"],
+      "responseTypes": ["OIDC_RESPONSE_TYPE_CODE"],
+      "grantTypes": ["OIDC_GRANT_TYPE_AUTHORIZATION_CODE", "OIDC_GRANT_TYPE_REFRESH_TOKEN"],
+      "applicationType": "OIDC_APPLICATION_TYPE_WEB",
+      "authMethodType": "OIDC_AUTH_METHOD_TYPE_BASIC",
+      "postLogoutRedirectUris": ["https://myapp.com"],
+      "version": "OIDC_VERSION_1_0",
+      "developmentMode": false,
+      "accessTokenType": "OIDC_TOKEN_TYPE_BEARER"
+    }
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "applicationId": "1035496534033449",
+  "creationDate": "2024-12-18T07:50:47.492Z",
+  "oidcConfiguration": {
+    "clientId": "1035496534033449@myproject",
+    "clientSecret": "gjoq34589uasgh",
+    "nonCompliant": false,
+    "complianceProblems": []
+  }
+}
+```
+
+## Error Responses
+
+- `400 Bad Request` - Invalid application configuration
+- `403 Forbidden` - Insufficient permissions

@@ -1,0 +1,359 @@
+---
+title: "Organizations"
+description: "Understand ZITADEL's organization structure and multi-tenancy model"
+---
+
+Organizations are the foundational multi-tenancy unit in ZITADEL. They provide logical isolation for users, projects, and settings, enabling you to manage multiple customers, departments, or business units within a single ZITADEL instance.
+
+## What is an Organization?
+
+An organization is a container that owns:
+
+- **Users**: Both human users and machine users (service accounts)
+- **Projects**: Collections of applications and their roles
+- **Settings**: Organization-specific configurations and policies
+- **Domains**: Custom domains for user login and branding
+
+<Note>
+Every user, project, and application must belong to exactly one organization. However, projects can be granted to other organizations for cross-organizational access.
+</Note>
+
+## Organization Properties
+
+Each organization has:
+
+- **Unique ID**: A system-generated identifier
+- **Name**: A human-readable name (must be unique across the instance)
+- **Primary Domain**: The main domain associated with the organization
+- **State**: Active, inactive, or removed
+
+## Creating Organizations
+
+You can create organizations through the Console or programmatically.
+
+### Via Console
+
+1. Navigate to the instance-level admin view
+2. Go to **Organizations**
+3. Click **Create Organization**
+4. Enter the organization name
+5. Optionally add admin users
+6. Click **Save**
+
+### Via API
+
+Create an organization with admin users:
+
+```javascript
+const response = await orgService.addOrganization({
+  name: "Acme Corporation",
+  admins: [
+    {
+      human: {
+        userName: "admin@acme.com",
+        profile: {
+          givenName: "Jane",
+          familyName: "Admin",
+          email: {
+            email: "admin@acme.com",
+            isVerified: false
+          }
+        }
+      },
+      roles: ["ORG_OWNER"]
+    }
+  ]
+});
+```
+
+If you don't specify admin users, the organization will be created without administrators. Instance administrators can still manage it.
+
+## Organization Domains
+
+Domains define how users are identified and which organization they belong to.
+
+### Primary Domain
+
+Every organization automatically gets a primary domain based on its name:
+
+- Organization name: "Acme Corporation"
+- Primary domain: `acme-corporation.{instance-domain}`
+
+Users can log in using: `username@acme-corporation.zitadel.cloud`
+
+### Custom Domains
+
+Add your own domains to enable branded login experiences:
+
+<Steps>
+  <Step title="Add the domain">
+    ```javascript
+    await orgService.addOrganizationDomain({
+      organizationId: "69629023906488334",
+      domain: "acme.com"
+    });
+    ```
+  </Step>
+
+  <Step title="Generate verification token">
+    Choose DNS or HTTP validation:
+
+    ```javascript
+    const validation = await orgService.generateOrganizationDomainValidation({
+      organizationId: "69629023906488334",
+      domain: "acme.com",
+      type: "DOMAIN_VALIDATION_TYPE_DNS" // or DOMAIN_VALIDATION_TYPE_HTTP
+    });
+    ```
+  </Step>
+
+  <Step title="Add the verification record">
+    **For DNS validation:**
+    Add a TXT record to your domain's DNS:
+    ```
+    _zitadel-challenge.acme.com TXT "validation-token-here"
+    ```
+
+    **For HTTP validation:**
+    Host a file at:
+    ```
+    https://acme.com/.well-known/zitadel-challenge/validation-token
+    ```
+  </Step>
+
+  <Step title="Verify the domain">
+    ```javascript
+    await orgService.verifyOrganizationDomain({
+      organizationId: "69629023906488334",
+      domain: "acme.com"
+    });
+    ```
+  </Step>
+</Steps>
+
+<Note>
+Verified domains must be unique across the entire ZITADEL instance. Once verified, users can log in using their email addresses (e.g., `user@acme.com`).
+</Note>
+
+## Organization States
+
+Organizations can be in different states:
+
+- **Active**: Normal operation, users can log in and access applications
+- **Inactive**: Deactivated, users cannot log in, but data is preserved
+- **Removed**: Organization has been deleted
+
+### Deactivating Organizations
+
+Deactivate an organization to temporarily disable all access:
+
+```javascript
+await orgService.deactivateOrganization({
+  organizationId: "69629023906488334"
+});
+```
+
+When deactivated:
+- All users in the organization cannot log in
+- All applications under the organization's projects are inaccessible
+- Organization data is preserved
+- Can be reactivated later
+
+### Activating Organizations
+
+Reactivate a previously deactivated organization:
+
+```javascript
+await orgService.activateOrganization({
+  organizationId: "69629023906488334"
+});
+```
+
+## Organization Roles
+
+Organization roles determine what users can do within an organization:
+
+| Role | Description |
+|------|-------------|
+| `ORG_OWNER` | Full administrative access to the organization |
+| `ORG_USER_MANAGER` | Can manage users within the organization |
+| `ORG_PROJECT_PERMISSION_MANAGER` | Can manage project permissions and grants |
+| `ORG_AUDITOR` | Read-only access to audit logs and organization data |
+
+<Note>
+Organization roles are different from project roles. Organization roles control administrative access to the organization itself, while project roles control access to specific applications.
+</Note>
+
+## Organization Metadata
+
+Store custom key-value data on organizations for application-specific needs:
+
+```javascript
+await orgService.setOrganizationMetadata({
+  organizationId: "69629023906488334",
+  metadata: [
+    {
+      key: "subscription_tier",
+      value: btoa("enterprise") // Base64 encoded
+    },
+    {
+      key: "billing_email",
+      value: btoa("billing@acme.com")
+    }
+  ]
+});
+```
+
+Retrieve metadata:
+
+```javascript
+const metadata = await orgService.listOrganizationMetadata({
+  organizationId: "69629023906488334",
+  filters: [
+    {
+      keyFilter: {
+        key: "subscription_tier",
+        method: "TEXT_FILTER_METHOD_EQUALS"
+      }
+    }
+  ]
+});
+```
+
+## Multi-Tenancy Patterns
+
+ZITADEL's organization model supports various multi-tenancy scenarios:
+
+<AccordionGroup>
+  <Accordion title="Customer Isolation (SaaS)">
+    Create one organization per customer:
+
+    - Each customer gets complete data isolation
+    - Customers manage their own users and access
+    - You control which projects are available per customer using project grants
+    - Custom branding per customer via custom domains
+
+    **Example**: A CRM platform where each company is a separate organization
+  </Accordion>
+
+  <Accordion title="Departmental Structure">
+    Create organizations for different departments:
+
+    - Sales, Engineering, Marketing each have their own organization
+    - Users belong to their department's organization
+    - Shared applications via project grants
+    - Simplified user management per department
+
+    **Example**: An enterprise with distinct business units
+  </Accordion>
+
+  <Accordion title="Environment Separation">
+    Create organizations for different environments:
+
+    - Production, Staging, Development organizations
+    - Isolate test users from production users
+    - Same project structure across environments
+    - Safe testing without affecting production
+
+    **Example**: Software development lifecycle management
+  </Accordion>
+
+  <Accordion title="Partner Ecosystem">
+    Create organizations for partners and resellers:
+
+    - Each partner manages their own users
+    - Grant partners access to specific projects
+    - Track usage and activity per partner
+    - Enable partner-branded login experiences
+
+    **Example**: A marketplace with multiple vendors
+  </Accordion>
+</AccordionGroup>
+
+## Searching Organizations
+
+List and filter organizations across your instance:
+
+```javascript
+const orgs = await orgService.listOrganizations({
+  query: {
+    limit: 50,
+    offset: 0
+  },
+  sortingColumn: "ORGANIZATION_FIELD_NAME_NAME",
+  queries: [
+    {
+      nameQuery: {
+        name: "Acme",
+        method: "TEXT_QUERY_METHOD_CONTAINS"
+      }
+    }
+  ]
+});
+```
+
+## Deleting Organizations
+
+Permanently delete an organization and all its data:
+
+```javascript
+await orgService.deleteOrganization({
+  organizationId: "69629023906488334"
+});
+```
+
+<Warning>
+Deleting an organization:
+- Removes all users in the organization
+- Deletes all projects owned by the organization
+- Removes all project grants to/from the organization
+- Cannot be undone
+- Users will not be able to log in
+
+Use deactivation instead if you need to preserve data.
+</Warning>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Choose the Right Granularity">
+    - **Too many organizations**: Administrative overhead, complex project grants
+    - **Too few organizations**: Limited isolation, harder to manage permissions
+    - **Right balance**: Align with business structure and isolation requirements
+  </Accordion>
+
+  <Accordion title="Plan Your Domain Strategy">
+    - Verify domains early in the setup process
+    - Use custom domains for production environments
+    - Keep primary domains for internal or fallback access
+    - Document which domains are used for login
+  </Accordion>
+
+  <Accordion title="Manage Organization Lifecycle">
+    - Deactivate organizations instead of deleting when possible
+    - Use metadata to track organization state and subscription info
+    - Regularly audit organization access and administrators
+    - Automate organization provisioning for scalability
+  </Accordion>
+
+  <Accordion title="Security Considerations">
+    - Limit `ORG_OWNER` role assignments
+    - Use `ORG_AUDITOR` for compliance and monitoring
+    - Enable audit logging for organization changes
+    - Review project grants regularly to ensure appropriate access
+  </Accordion>
+</AccordionGroup>
+
+## Related Concepts
+
+<CardGroup cols={3}>
+  <Card title="Users" icon="user" href="/user-management/users">
+    Users belong to organizations and can be granted access across organizations
+  </Card>
+  <Card title="Projects" icon="folder" href="/user-management/projects">
+    Projects are owned by organizations and can be granted to others
+  </Card>
+  <Card title="Roles" icon="shield" href="/user-management/roles">
+    Roles define what users can do within projects and organizations
+  </Card>
+</CardGroup>

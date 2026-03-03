@@ -1,0 +1,147 @@
+---
+title: Admin Service Overview
+description: API for managing ZITADEL instance configuration and settings
+---
+
+The Admin Service API is designed to configure and manage a ZITADEL instance. It provides administrative operations for instance-wide settings, organizations, identity providers, and system configuration.
+
+## Base URL
+
+```
+https://$CUSTOM_DOMAIN/admin/v1
+```
+
+## Authentication
+
+All endpoints require authentication using OAuth2 with the following scopes:
+- `openid`
+- `urn:zitadel:iam:org:project:id:zitadel:aud`
+
+Alternatively, Basic Authentication is supported for some endpoints.
+
+## Key Concepts
+
+### Instance Administration
+
+The Admin API operates at the instance level, allowing you to:
+- Configure instance-wide settings
+- Manage organizations
+- Set up identity providers
+- Configure email and SMS providers
+- Manage system policies
+
+### Permissions
+
+Admin operations require specific permissions:
+- `iam.read` - Read instance configuration
+- `iam.write` - Modify instance configuration
+- `iam.policy.read` - Read policies
+- `iam.policy.write` - Modify policies
+- `iam.idp.read` - Read identity providers
+- `iam.idp.write` - Modify identity providers
+
+## Available Operations
+
+### Instance Management
+- [Instance Management](/api/admin-service/instance-management) - View instance details and manage domains
+- Get My Instance
+- List Instance Domains
+- Add/Remove Trusted Domains
+
+### System Settings
+- [System Settings](/api/admin-service/system-settings) - Configure languages, OIDC, and security policies
+- Get/Set Default Language
+- Get Supported/Allowed Languages
+- Get/Set OIDC Settings
+- Get/Set Security Policy
+
+### Organization Management
+- List Organizations
+- Setup Organization
+- Remove Organization
+- Get/Set Default Organization
+
+### Email & SMS Providers
+- Add/Update/Remove Email Providers (SMTP, HTTP)
+- Add/Update/Remove SMS Providers (Twilio, HTTP)
+- Activate/Deactivate Providers
+
+### Identity Providers
+- Add OIDC/JWT Identity Providers
+- List/Get Identity Providers
+- Update/Remove Identity Providers
+
+### Secret Generators
+- List Secret Generators
+- Get/Update Secret Generator Configuration
+
+## Deprecated Features
+
+Several endpoints in the Admin API v1 are deprecated in favor of newer v2 APIs:
+
+### Deprecated Organization Operations
+Use [Organization Service v2](/api/org-service-v2) instead:
+- `GetOrgByID` → Use `ListOrganizations` with filter
+- `IsOrgUnique` → Use `ListOrganizations` with filter
+- `GetDefaultOrg` → Use `ListOrganizations` with filter
+- `ListOrgs` → Use `ListOrganizations`
+- `SetUpOrg` → Use `AddOrganization`
+- `RemoveOrg` → Use `DeleteOrganization`
+
+### Deprecated Instance Operations
+Use [Instance Service v2](/api/instance-service-v2) instead:
+- `GetMyInstance` → Use `GetInstance`
+- `ListInstanceDomains` → Use `GetInstance`
+- `ListInstanceTrustedDomains` → Use `ListTrustedDomains`
+- `AddInstanceTrustedDomain` → Use `AddTrustedDomain`
+- `RemoveInstanceTrustedDomain` → Use `RemoveTrustedDomain`
+
+### Deprecated SMTP Operations
+Use Email Provider endpoints instead:
+- `GetSMTPConfig` → Use `GetEmailProvider`
+- `GetSMTPConfigById` → Use `GetEmailProviderById`
+- `AddSMTPConfig` → Use `AddEmailProviderSMTP`
+- `UpdateSMTPConfig` → Use `UpdateEmailProviderSMTP`
+- `UpdateSMTPConfigPassword` → Use `UpdateEmailProviderSMTPPassword`
+- `ActivateSMTPConfig` → Use `ActivateEmailProvider`
+- `DeactivateSMTPConfig` → Use `DeactivateEmailProvider`
+- `RemoveSMTPConfig` → Use `RemoveEmailProvider`
+
+### Deprecated IDP Operations
+Use Identity Provider v2 API instead:
+- `GetIDPByID` → Use v2 equivalent
+- `ListIDPs` → Use v2 equivalent
+- `AddOIDCIDP` → Use v2 equivalent
+
+## Common Use Cases
+
+### Instance Setup
+
+1. Configure default language
+2. Set up email/SMS providers
+3. Configure OIDC token lifetimes
+4. Create default organization
+
+### Multi-Tenancy
+
+1. Create organizations for each tenant
+2. Configure organization-specific settings
+3. Manage organization members
+4. Set up organization identity providers
+
+### Security Configuration
+
+1. Configure password complexity
+2. Set up MFA requirements
+3. Configure security policies
+4. Manage session lifetimes
+
+## Response Codes
+
+| Status Code | Description |
+|-------------|-------------|
+| 200 | Success |
+| 400 | Bad request - invalid parameters |
+| 401 | Unauthorized - missing or invalid authentication |
+| 403 | Forbidden - insufficient permissions |
+| 404 | Resource not found |

@@ -1,0 +1,63 @@
+---
+title: Organization Service Overview
+description: Manage organizations in your ZITADEL instance
+---
+
+## Overview
+
+The Organization Service API is intended to manage organizations in a ZITADEL instance. Organizations are containers for users, projects, and applications with isolated settings and policies.
+
+## API Version
+
+This documentation covers **Organization Service v2**.
+
+## Authentication
+
+All Organization Service endpoints require authentication using OAuth2. The following scopes are required:
+
+- `openid`
+- `urn:zitadel:iam:org:project:id:zitadel:aud`
+
+## Base URL
+
+```
+https://$CUSTOM_DOMAIN/v2/organizations
+```
+
+## Common Operations
+
+- [Create Organization](/api/organization-service/create-organization) - Create a new organization
+- [Update Organization](/api/organization-service/update-organization) - Update an organization's name
+- [List Organizations](/api/organization-service/list-organizations) - Search and list organizations
+
+## Organization States
+
+Organizations can be in one of the following states:
+
+- `ORGANIZATION_STATE_ACTIVE` - Organization is active
+- `ORGANIZATION_STATE_INACTIVE` - Organization is deactivated
+- `ORGANIZATION_STATE_REMOVED` - Organization has been deleted
+
+## Organization Domains
+
+Each organization can have multiple domains:
+
+- **Primary Domain** - Automatically generated from the organization name
+- **Custom Domains** - Additional domains that can be added and verified
+- **Domain Verification** - Domains can be verified via HTTP or DNS challenge
+
+## Required Permissions
+
+- `org.create` - Create new organizations
+- `org.write` - Modify organizations
+- `org.read` - Read organization data
+- `org.delete` - Delete organizations
+
+## Error Responses
+
+Common HTTP status codes:
+
+- `400` - Bad Request: Invalid request data
+- `403` - Forbidden: Insufficient permissions
+- `404` - Not Found: Organization does not exist
+- `409` - Conflict: Organization name already taken

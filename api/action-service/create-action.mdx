@@ -1,0 +1,145 @@
+---
+title: Create Target
+description: Create a new target endpoint for executions
+---
+
+Creates a new target that points to your external endpoint. Targets can be used in executions to extend ZITADEL's functionality.
+
+## HTTP Request
+
+```
+POST /v2/actions/targets
+```
+
+## Permissions
+
+Requires `action.target.write` permission.
+
+## Request Body
+
+<ParamField path="name" type="string" required>
+  Display name for the target (1-1000 characters).
+</ParamField>
+
+<ParamField path="target_type" type="object" required>
+  Defines how the response is handled. Choose one:
+  
+  <ParamField path="rest_webhook" type="object">
+    POST request where only the status code is checked. Body is ignored.
+    
+    <ParamField path="interrupt_on_error" type="boolean">
+      If true, execution stops on non-2xx response. Default is false.
+    </ParamField>
+  </ParamField>
+  
+  <ParamField path="rest_call" type="object">
+    POST request where status code and body are checked. Allows payload modification.
+    
+    <ParamField path="interrupt_on_error" type="boolean">
+      If true, execution stops on non-2xx response. Default is false.
+    </ParamField>
+  </ParamField>
+  
+  <ParamField path="rest_async" type="object">
+    Asynchronous POST request. Response is not waited for or checked. Use for events.
+  </ParamField>
+</ParamField>
+
+<ParamField path="timeout" type="string">
+  Duration until ZITADEL cancels the request (e.g., "10s"). Maximum is 270 seconds. If the target doesn't respond before timeout, the connection is closed and the action fails.
+</ParamField>
+
+<ParamField path="endpoint" type="string" required>
+  The URL of the endpoint to call (1-2048 characters). Must be a valid HTTPS URL.
+</ParamField>
+
+<ParamField path="payload_type" type="enum">
+  How the payload is formatted and secured:
+  - `PAYLOAD_TYPE_JSON` (default): JSON with X-ZITADEL-Signature header
+  - `PAYLOAD_TYPE_JWT`: Signed JWT in the body
+  - `PAYLOAD_TYPE_JWE`: Encrypted JWT in the body (requires public key)
+</ParamField>
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier of the newly created target.
+</ResponseField>
+
+<ResponseField name="creation_date" type="timestamp">
+  When the target was created.
+</ResponseField>
+
+<ResponseField name="signing_key" type="string">
+  Key used to sign and verify payloads sent to the target. Used to calculate the HMAC SHA256 signature in the `X-ZITADEL-Signature` header. Keep this secret.
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X POST 'https://api.zitadel.cloud/v2/actions/targets' \
+  -H 'Authorization: Bearer <TOKEN>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "ip_allow_list",
+    "rest_webhook": {
+      "interrupt_on_error": true
+    },
+    "timeout": "10s",
+    "endpoint": "https://example.com/hooks/ip_check",
+    "payload_type": "PAYLOAD_TYPE_JSON"
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "id": "69629012906488334",
+  "creation_date": "2024-12-18T07:50:47.492Z",
+  "signing_key": "98KmsU67"
+}
+```
+
+## Error Responses
+
+| Status Code | Description |
+|-------------|-------------|
+| 400 | Feature flag `actions` not enabled or invalid request |
+| 401 | Unauthorized - missing or invalid authentication |
+| 403 | Forbidden - insufficient permissions |
+| 409 | Target with this name already exists |
+
+## Payload Types
+
+### JSON (Default)
+
+Payload is sent as JSON in the request body. Signature is included in the `X-ZITADEL-Signature` header, calculated using HMAC SHA256 over the raw body.
+
+Verify the signature on your endpoint:
+```javascript
+const crypto = require('crypto');
+
+function verifySignature(body, signature, signingKey) {
+  const hmac = crypto.createHmac('sha256', signingKey);
+  hmac.update(body);
+  const calculatedSignature = hmac.digest('hex');
+  return signature === calculatedSignature;
+}
+```
+
+### JWT
+
+Payload is sent as a signed JWT. The signature can be verified using ZITADEL's public keys from the JWKS endpoint.
+
+### JWE
+
+Payload is sent as an encrypted JWT. You must add your public key to the target for encryption. This provides additional security for sensitive data.
+
+## Notes
+
+- The signing key is only returned on creation and cannot be retrieved later
+- Store the signing key securely - it's needed to verify request authenticity
+- Targets can be updated later, but the signing key only changes when explicitly rotated
+- The endpoint URL must be accessible from ZITADEL servers
+- For `rest_async` targets, timeouts only affect the individual target, not the overall execution

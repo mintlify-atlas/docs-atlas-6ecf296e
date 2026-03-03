@@ -1,0 +1,166 @@
+---
+title: Create User
+description: Create a new user or service account in a ZITADEL organization
+---
+
+## Endpoint
+
+```
+POST /v2/users/new
+```
+
+## Description
+
+Create a new user or service account in the specified organization. This endpoint supports creating both human users and machine users (service accounts).
+
+## Required Permission
+
+- `user.write`
+
+## Request Body
+
+<ParamField body="user" type="object" required>
+  The user to create. Can be either a human user or a machine user.
+
+  <ParamField body="userId" type="string">
+    Optional unique identifier for the user. If omitted, the system will generate one.
+  </ParamField>
+
+  <ParamField body="username" type="string" required>
+    Username for the user. Must be unique within the organization or globally depending on settings.
+  </ParamField>
+
+  <ParamField body="organization" type="object">
+    Organization context for the user.
+    
+    <ParamField body="orgId" type="string">
+      Organization ID where the user will be created.
+    </ParamField>
+  </ParamField>
+
+  <ParamField body="profile" type="object">
+    Profile information for human users.
+    
+    <ParamField body="givenName" type="string" required>
+      First name of the user.
+    </ParamField>
+    
+    <ParamField body="familyName" type="string" required>
+      Last name of the user.
+    </ParamField>
+    
+    <ParamField body="nickName" type="string">
+      Nickname of the user.
+    </ParamField>
+    
+    <ParamField body="displayName" type="string">
+      Display name of the user.
+    </ParamField>
+    
+    <ParamField body="preferredLanguage" type="string">
+      Preferred language code (e.g., "en", "de").
+    </ParamField>
+    
+    <ParamField body="gender" type="string">
+      Gender of the user. Options: `GENDER_FEMALE`, `GENDER_MALE`, `GENDER_DIVERSE`.
+    </ParamField>
+  </ParamField>
+
+  <ParamField body="email" type="object">
+    Email configuration for the user.
+    
+    <ParamField body="email" type="string" required>
+      Email address.
+    </ParamField>
+    
+    <ParamField body="isVerified" type="boolean">
+      Whether the email is already verified.
+    </ParamField>
+  </ParamField>
+
+  <ParamField body="phone" type="object">
+    Phone configuration for the user.
+    
+    <ParamField body="phone" type="string" required>
+      Phone number in E.164 format.
+    </ParamField>
+    
+    <ParamField body="isVerified" type="boolean">
+      Whether the phone is already verified.
+    </ParamField>
+  </ParamField>
+</ParamField>
+
+## Response
+
+<ResponseField name="userId" type="string">
+  The unique identifier of the newly created user.
+</ResponseField>
+
+<ResponseField name="details" type="object">
+  Metadata about the creation.
+  
+  <ResponseField name="sequence" type="string">
+    Sequence number of the change.
+  </ResponseField>
+  
+  <ResponseField name="changeDate" type="timestamp">
+    Timestamp of when the user was created.
+  </ResponseField>
+  
+  <ResponseField name="resourceOwner" type="string">
+    Organization ID that owns the user.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="emailCode" type="string">
+  Email verification code if email verification was requested and not sent.
+</ResponseField>
+
+<ResponseField name="phoneCode" type="string">
+  Phone verification code if phone verification was requested and not sent.
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X POST https://your-domain.zitadel.cloud/v2/users/new \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "minnie.mouse",
+    "organization": {
+      "orgId": "69629026806489455"
+    },
+    "profile": {
+      "givenName": "Minnie",
+      "familyName": "Mouse",
+      "displayName": "Minnie Mouse",
+      "preferredLanguage": "en",
+      "gender": "GENDER_FEMALE"
+    },
+    "email": {
+      "email": "minnie@example.com",
+      "isVerified": false
+    }
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "userId": "d654e6ba-70a3-48ef-a95d-37c8d8a7901a",
+  "details": {
+    "sequence": "1234",
+    "changeDate": "2024-03-15T10:30:00Z",
+    "resourceOwner": "69629026806489455"
+  }
+}
+```
+
+## Error Responses
+
+- `409 Conflict` - User already exists with the same username
+- `400 Bad Request` - Invalid request data
+- `403 Forbidden` - Insufficient permissions

@@ -1,0 +1,766 @@
+---
+title: SCIM 2.0 Integration
+description: Automate user provisioning and lifecycle management with ZITADEL's SCIM 2.0 API for seamless identity synchronization
+---
+
+The System for Cross-domain Identity Management (SCIM) is a standard for automating the exchange of user identity information between identity domains or IT systems. ZITADEL implements SCIM v2.0, enabling automated user provisioning, deprovisioning, and synchronization.
+
+## Why use SCIM?
+
+SCIM provides significant benefits for identity management:
+
+**Automated provisioning**
+
+Automatically create, update, and deactivate user accounts across systems without manual intervention, reducing administrative overhead and human error.
+
+**Standardized protocol**
+
+SCIM is an industry standard (RFC 7643, RFC 7644) supported by major identity providers and SaaS applications, ensuring interoperability.
+
+**Real-time synchronization**
+
+Changes to user accounts are propagated immediately, ensuring consistent identity information across your organization.
+
+**Lifecycle management**
+
+Manage the complete user lifecycle from onboarding to offboarding, automatically provisioning and deprovisioning access as needed.
+
+**Reduced security risks**
+
+Promptly remove access when employees leave or change roles, minimizing the risk of unauthorized access.
+
+## SCIM Base URL
+
+All SCIM endpoints are available at:
+
+```
+https://${CUSTOM_DOMAIN}/scim/v2/{orgId}
+```
+
+Replace `{orgId}` with your organization's ID in ZITADEL.
+
+## Authentication
+
+SCIM requests must be authenticated using OAuth 2.0 Bearer tokens. Follow these steps:
+
+1. Create a service account in ZITADEL
+2. Grant the service account necessary permissions for user management
+3. Obtain an access token using the client credentials flow
+4. Include the token in the Authorization header
+
+**Example authentication:**
+
+```bash
+# Get access token
+curl -X POST "https://${CUSTOM_DOMAIN}/oauth/v2/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=client_credentials" \
+  -d "client_id=${CLIENT_ID}" \
+  -d "client_secret=${CLIENT_SECRET}" \
+  -d "scope=openid profile email"
+
+# Use token in SCIM request
+curl -X GET "https://${CUSTOM_DOMAIN}/scim/v2/${ORG_ID}/Users" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -H "Accept: application/scim+json"
+```
+
+See [Authenticate Service Accounts](/guides/integrate/service-accounts/authenticate-service-accounts) for detailed authentication instructions.
+
+## Supported Endpoints
+
+ZITADEL supports the following SCIM 2.0 endpoints:
+
+### Service Provider Configuration
+
+**Get service provider configuration:**
+
+```
+GET /scim/v2/{orgId}/ServiceProviderConfig
+```
+
+Returns metadata about ZITADEL's SCIM implementation, including supported features, operations, and schemas.
+
+```bash
+curl -G "https://${CUSTOM_DOMAIN}/scim/v2/${ORG_ID}/ServiceProviderConfig" \
+  -H "Accept: application/scim+json"
+```
+
+**Response:**
+
+```json
+{
+  "schemas": ["urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig"],
+  "documentationUri": "https://zitadel.com/docs/guides/manage/user/scim2",
+  "patch": { "supported": true },
+  "bulk": {
+    "supported": true,
+    "maxOperations": 100,
+    "maxPayloadSize": 1000000
+  },
+  "filter": {
+    "supported": true,
+    "maxResults": 100
+  },
+  "changePassword": { "supported": true },
+  "sort": { "supported": true },
+  "etag": { "supported": false }
+}
+```
+
+### Schemas
+
+**List all schemas:**
+
+```
+GET /scim/v2/{orgId}/Schemas
+```
+
+**Get specific schema:**
+
+```
+GET /scim/v2/{orgId}/Schemas/{id}
+```
+
+### Resource Types
+
+**List all resource types:**
+
+```
+GET /scim/v2/{orgId}/ResourceTypes
+```
+
+**Get specific resource type:**
+
+```
+GET /scim/v2/{orgId}/ResourceTypes/{name}
+```
+
+### User Management
+
+#### Create User
+
+```
+POST /scim/v2/{orgId}/Users
+```
+
+**Minimal user creation:**
+
+```bash
+curl -X POST "https://${CUSTOM_DOMAIN}/scim/v2/${ORG_ID}/Users" \
+  -H "Content-Type: application/scim+json" \
+  -H "Accept: application/scim+json" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -d '{
+    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+    "userName": "john.doe",
+    "name": {
+      "familyName": "Doe",
+      "givenName": "John"
+    },
+    "password": "SecurePassword123!",
+    "emails": [
+      {
+        "value": "john.doe@example.com",
+        "primary": true
+      }
+    ]
+  }'
+```
+
+**Full user creation with all attributes:**
+
+```bash
+curl -X POST "https://${CUSTOM_DOMAIN}/scim/v2/${ORG_ID}/Users" \
+  -H "Content-Type: application/scim+json" \
+  -H "Accept: application/scim+json" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -d '{
+    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+    "externalId": "8d4b51c0-51bd-4386-ae17-79ce5fd36517",
+    "userName": "john.doe@example.com",
+    "name": {
+      "formatted": "Mr. John J Doe, III",
+      "familyName": "Doe",
+      "givenName": "John",
+      "middleName": "Jim",
+      "honorificPrefix": "Mr.",
+      "honorificSuffix": "III"
+    },
+    "displayName": "John Doe",
+    "nickName": "Johnny",
+    "profileUrl": "https://login.example.com/john.doe",
+    "emails": [
+      {
+        "value": "john.doe@example.com",
+        "type": "work",
+        "primary": true
+      }
+    ],
+    "phoneNumbers": [
+      {
+        "value": "+1 555-555-5555",
+        "type": "work",
+        "primary": true
+      }
+    ],
+    "addresses": [
+      {
+        "type": "work",
+        "streetAddress": "100 Universal City Plaza",
+        "locality": "Hollywood",
+        "region": "CA",
+        "postalCode": "91608",
+        "country": "USA",
+        "formatted": "100 Universal City Plaza\nHollywood, CA 91608 USA",
+        "primary": true
+      }
+    ],
+    "userType": "Employee",
+    "title": "Software Engineer",
+    "preferredLanguage": "en-US",
+    "locale": "en-US",
+    "timezone": "America/Los_Angeles",
+    "active": true,
+    "password": "SecurePassword123!"
+  }'
+```
+
+#### Retrieve User
+
+```
+GET /scim/v2/{orgId}/Users/{id}
+```
+
+```bash
+curl -G "https://${CUSTOM_DOMAIN}/scim/v2/${ORG_ID}/Users/${USER_ID}" \
+  -H "Accept: application/scim+json" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}"
+```
+
+#### List Users
+
+```
+GET /scim/v2/{orgId}/Users
+```
+
+Supports filtering, sorting, and pagination.
+
+**Basic list:**
+
+```bash
+curl -G "https://${CUSTOM_DOMAIN}/scim/v2/${ORG_ID}/Users" \
+  -H "Accept: application/scim+json" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}"
+```
+
+**With pagination:**
+
+```bash
+curl -G "https://${CUSTOM_DOMAIN}/scim/v2/${ORG_ID}/Users" \
+  -H "Accept: application/scim+json" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  --data-urlencode "startIndex=1" \
+  --data-urlencode "count=50"
+```
+
+**With filtering and sorting:**
+
+```bash
+curl -G "https://${CUSTOM_DOMAIN}/scim/v2/${ORG_ID}/Users" \
+  -H "Accept: application/scim+json" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  --data-urlencode "filter=emails.value eq \"john@example.com\"" \
+  --data-urlencode "sortBy=name.familyName" \
+  --data-urlencode "sortOrder=ascending"
+```
+
+#### Update User (PUT)
+
+```
+PUT /scim/v2/{orgId}/Users/{id}
+```
+
+Replaces the entire user resource.
+
+```bash
+curl -X PUT "https://${CUSTOM_DOMAIN}/scim/v2/${ORG_ID}/Users/${USER_ID}" \
+  -H "Content-Type: application/scim+json" \
+  -H "Accept: application/scim+json" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -d '{
+    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+    "userName": "john.doe@example.com",
+    "name": {
+      "familyName": "Doe",
+      "givenName": "John"
+    },
+    "emails": [
+      {
+        "value": "john.doe@example.com",
+        "primary": true
+      }
+    ],
+    "active": true
+  }'
+```
+
+#### Patch User (PATCH)
+
+```
+PATCH /scim/v2/{orgId}/Users/{id}
+```
+
+Partially updates a user resource.
+
+**Deactivate user:**
+
+```bash
+curl -X PATCH "https://${CUSTOM_DOMAIN}/scim/v2/${ORG_ID}/Users/${USER_ID}" \
+  -H "Content-Type: application/scim+json" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -d '{
+    "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+    "Operations": [
+      {
+        "op": "replace",
+        "path": "active",
+        "value": false
+      }
+    ]
+  }'
+```
+
+**Update email:**
+
+```bash
+curl -X PATCH "https://${CUSTOM_DOMAIN}/scim/v2/${ORG_ID}/Users/${USER_ID}" \
+  -H "Content-Type: application/scim+json" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -d '{
+    "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+    "Operations": [
+      {
+        "op": "replace",
+        "path": "emails[primary eq true].value",
+        "value": "newemail@example.com"
+      }
+    ]
+  }'
+```
+
+**Change password:**
+
+```bash
+curl -X PATCH "https://${CUSTOM_DOMAIN}/scim/v2/${ORG_ID}/Users/${USER_ID}" \
+  -H "Content-Type: application/scim+json" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -d '{
+    "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+    "Operations": [
+      {
+        "op": "replace",
+        "path": "password",
+        "value": "NewSecurePassword456!"
+      }
+    ]
+  }'
+```
+
+#### Delete User
+
+```
+DELETE /scim/v2/{orgId}/Users/{id}
+```
+
+```bash
+curl -X DELETE "https://${CUSTOM_DOMAIN}/scim/v2/${ORG_ID}/Users/${USER_ID}" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}"
+```
+
+#### Search Users (POST)
+
+```
+POST /scim/v2/{orgId}/Users/.search
+```
+
+Alternative to GET for complex queries.
+
+```bash
+curl -X POST "https://${CUSTOM_DOMAIN}/scim/v2/${ORG_ID}/Users/.search" \
+  -H "Content-Type: application/scim+json" \
+  -H "Accept: application/scim+json" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -d '{
+    "schemas": ["urn:ietf:params:scim:api:messages:2.0:SearchRequest"],
+    "filter": "name.familyName eq \"Doe\"",
+    "sortBy": "name.givenName",
+    "sortOrder": "ascending",
+    "startIndex": 1,
+    "count": 10
+  }'
+```
+
+### Bulk Operations
+
+```
+POST /scim/v2/{orgId}/Bulk
+```
+
+Execute multiple operations in a single request.
+
+```bash
+curl -X POST "https://${CUSTOM_DOMAIN}/scim/v2/${ORG_ID}/Bulk" \
+  -H "Content-Type: application/scim+json" \
+  -H "Accept: application/scim+json" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -d '{
+    "schemas": ["urn:ietf:params:scim:api:messages:2.0:BulkRequest"],
+    "Operations": [
+      {
+        "method": "POST",
+        "path": "/Users",
+        "bulkId": "user1",
+        "data": {
+          "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+          "userName": "alice@example.com",
+          "name": {
+            "familyName": "Smith",
+            "givenName": "Alice"
+          },
+          "emails": [
+            {
+              "value": "alice@example.com",
+              "primary": true
+            }
+          ]
+        }
+      },
+      {
+        "method": "PATCH",
+        "path": "/Users/304499468865155777",
+        "data": {
+          "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+          "Operations": [
+            {
+              "op": "replace",
+              "path": "active",
+              "value": false
+            }
+          ]
+        }
+      },
+      {
+        "method": "DELETE",
+        "path": "/Users/304499603368096449"
+      }
+    ]
+  }'
+```
+
+**Bulk limits:**
+- Maximum operations per request: 100
+- Maximum payload size: 1,000,000 bytes
+
+## Filtering
+
+ZITADEL supports SCIM filtering with the following operators and attributes:
+
+### Supported Attributes
+
+| Attribute | Supported Operators |
+|-----------|--------------------|
+| `meta.created` | `eq`, `gt`, `ge`, `lt`, `le` |
+| `meta.lastModified` | `eq`, `gt`, `ge`, `lt`, `le` |
+| `id` | `eq`, `ne`, `co`, `sw`, `ew` |
+| `externalId` | `eq`, `ne` |
+| `userName` | `eq`, `ne`, `co`, `sw`, `ew` |
+| `name.familyName` | `eq`, `ne`, `co`, `sw`, `ew` |
+| `name.givenName` | `eq`, `ne`, `co`, `sw`, `ew` |
+| `emails`, `emails.value` | `eq`, `ne`, `co`, `sw`, `ew` |
+| `active` | `eq`, `ne` |
+
+### Filter Operators
+
+| Operator | Description | Example |
+|----------|-------------|----------|
+| `eq` | Equal | `userName eq "john.doe"` |
+| `ne` | Not equal | `active ne false` |
+| `co` | Contains | `emails co "@example.com"` |
+| `sw` | Starts with | `userName sw "john"` |
+| `ew` | Ends with | `emails ew "@example.com"` |
+| `gt` | Greater than | `meta.created gt "2024-01-01T00:00:00Z"` |
+| `ge` | Greater than or equal | `meta.lastModified ge "2024-01-01T00:00:00Z"` |
+| `lt` | Less than | `meta.created lt "2024-12-31T23:59:59Z"` |
+| `le` | Less than or equal | `meta.lastModified le "2024-12-31T23:59:59Z"` |
+
+### Filter Examples
+
+**Find users by email domain:**
+
+```bash
+filter=emails.value ew "@example.com"
+```
+
+**Find active users:**
+
+```bash
+filter=active eq true
+```
+
+**Find users created after a date:**
+
+```bash
+filter=meta.created gt "2024-01-01T00:00:00Z"
+```
+
+**Complex filter with AND:**
+
+```bash
+filter=active eq true and emails.value ew "@example.com"
+```
+
+**Complex filter with OR:**
+
+```bash
+filter=userName sw "john" or name.familyName eq "Doe"
+```
+
+**Filter with grouping:**
+
+```bash
+filter=(name.givenName eq "John" or name.givenName eq "Jane") and active eq true
+```
+
+### Filter Limitations
+
+- Maximum filter length: 1000 characters
+- Nested filters are supported with parentheses
+- Attribute paths are case-sensitive
+
+## Sorting
+
+Sort results using the `sortBy` and `sortOrder` parameters.
+
+### Supported Sort Attributes
+
+- `meta.created`
+- `meta.lastModified`
+- `id`
+- `userName`
+- `name.familyName`
+- `name.givenName`
+- `emails`, `emails.value`
+
+### Sort Examples
+
+**Sort by family name (ascending):**
+
+```bash
+sortBy=name.familyName&sortOrder=ascending
+```
+
+**Sort by creation date (descending):**
+
+```bash
+sortBy=meta.created&sortOrder=descending
+```
+
+## Pagination
+
+Control pagination with `startIndex` and `count` parameters.
+
+- **Default count**: 100 users
+- **Maximum count**: 100 users
+- **startIndex**: 1-based index (first user is 1, not 0)
+
+**Example:**
+
+```bash
+curl -G "https://${CUSTOM_DOMAIN}/scim/v2/${ORG_ID}/Users" \
+  -H "Accept: application/scim+json" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  --data-urlencode "startIndex=51" \
+  --data-urlencode "count=50"
+```
+
+**Response includes pagination metadata:**
+
+```json
+{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
+  "totalResults": 150,
+  "startIndex": 51,
+  "itemsPerPage": 50,
+  "Resources": [
+    // ... user objects
+  ]
+}
+```
+
+## Error Handling
+
+SCIM errors follow RFC 7644 and include additional ZITADEL-specific information.
+
+**Standard SCIM error response:**
+
+```json
+{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+  "status": "400",
+  "scimType": "invalidValue",
+  "detail": "The userName field is required"
+}
+```
+
+**ZITADEL extended error response:**
+
+```json
+{
+  "schemas": [
+    "urn:ietf:params:scim:api:messages:2.0:Error",
+    "urn:ietf:params:scim:api:zitadel:messages:2.0:ErrorDetail"
+  ],
+  "status": "400",
+  "scimType": "invalidValue",
+  "detail": "The userName field is required",
+  "urn:ietf:params:scim:api:zitadel:messages:2.0:ErrorDetail": {
+    "id": "SCIM-xy7Hf",
+    "message": "Errors.User.Username.Missing"
+  }
+}
+```
+
+### Common Error Types
+
+| scimType | HTTP Status | Description |
+|----------|-------------|-------------|
+| `invalidValue` | 400 | Invalid attribute value |
+| `tooMany` | 400 | Too many results returned |
+| `uniqueness` | 409 | Uniqueness constraint violation |
+| `mutability` | 400 | Attempt to modify immutable attribute |
+| `invalidSyntax` | 400 | Invalid request syntax |
+| `invalidFilter` | 400 | Invalid filter expression |
+| `noTarget` | 404 | Resource not found |
+
+## Integration Examples
+
+### Okta Integration
+
+See the [SCIM with Okta guide](/guides/integrate/scim-okta-guide) for step-by-step instructions.
+
+### Custom Integration
+
+**Basic provisioning workflow:**
+
+```javascript
+const axios = require('axios');
+
+const SCIM_BASE = `https://${CUSTOM_DOMAIN}/scim/v2/${ORG_ID}`;
+const ACCESS_TOKEN = 'your-access-token';
+
+const headers = {
+  'Authorization': `Bearer ${ACCESS_TOKEN}`,
+  'Content-Type': 'application/scim+json',
+  'Accept': 'application/scim+json'
+};
+
+// Create a user
+async function createUser(userData) {
+  const response = await axios.post(
+    `${SCIM_BASE}/Users`,
+    {
+      schemas: ['urn:ietf:params:scim:schemas:core:2.0:User'],
+      ...userData
+    },
+    { headers }
+  );
+  return response.data;
+}
+
+// Update a user
+async function updateUser(userId, updates) {
+  const response = await axios.patch(
+    `${SCIM_BASE}/Users/${userId}`,
+    {
+      schemas: ['urn:ietf:params:scim:api:messages:2.0:PatchOp'],
+      Operations: updates
+    },
+    { headers }
+  );
+  return response.data;
+}
+
+// Deactivate a user
+async function deactivateUser(userId) {
+  return updateUser(userId, [
+    { op: 'replace', path: 'active', value: false }
+  ]);
+}
+
+// Search users
+async function searchUsers(filter) {
+  const response = await axios.get(
+    `${SCIM_BASE}/Users`,
+    {
+      headers,
+      params: { filter }
+    }
+  );
+  return response.data;
+}
+
+// Example usage
+const newUser = await createUser({
+  userName: 'jane.doe',
+  name: {
+    familyName: 'Doe',
+    givenName: 'Jane'
+  },
+  emails: [
+    { value: 'jane.doe@example.com', primary: true }
+  ],
+  password: 'SecurePassword123!'
+});
+
+console.log('Created user:', newUser.id);
+
+// Update the user
+await updateUser(newUser.id, [
+  { op: 'replace', path: 'title', value: 'Senior Engineer' }
+]);
+
+// Search for users
+const results = await searchUsers('emails.value ew "@example.com"');
+console.log(`Found ${results.totalResults} users`);
+```
+
+## Best Practices
+
+1. **Use bulk operations**: Reduce API calls by batching operations
+2. **Implement retry logic**: Handle rate limits and transient errors
+3. **Filter efficiently**: Use specific filters to reduce response size
+4. **Paginate results**: Don't request all users at once
+5. **Monitor quota**: Track API usage to stay within limits
+6. **Use PATCH for updates**: More efficient than PUT for partial updates
+7. **Validate before sending**: Check data locally before API calls
+8. **Handle errors gracefully**: Implement proper error handling and logging
+9. **Cache access tokens**: Reuse tokens until they expire
+10. **Test thoroughly**: Use ServiceProviderConfig to understand capabilities
+
+## Limitations
+
+- Maximum 100 users per request
+- Maximum 100 operations per bulk request
+- Maximum 1MB bulk request payload
+- Maximum 1000 character filter length
+- ETags are not supported
+- Group resources are not currently supported
+
+## Resources
+
+- [RFC 7643: SCIM Core Schema](https://datatracker.ietf.org/doc/html/rfc7643)
+- [RFC 7644: SCIM Protocol](https://datatracker.ietf.org/doc/html/rfc7644)
+- [ZITADEL SCIM Documentation](/guides/manage/user/scim2)
+- [SCIM.cloud](https://scim.cloud/)
+- [ZITADEL SCIM with Okta](/guides/integrate/scim-okta-guide)

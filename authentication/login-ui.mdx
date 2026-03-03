@@ -1,0 +1,281 @@
+---
+title: Login UI
+description: Learn about ZITADEL's customizable login interface and how to configure the authentication experience for your users.
+---
+
+ZITADEL provides a fully hosted, customizable login interface that handles all authentication flows for your applications. The Login UI is built with Next.js and supports multiple authentication methods, branding customization, and responsive design.
+
+## Overview
+
+The Login UI (also known as Login V2 or Hosted Login) is the default authentication interface for ZITADEL. It provides:
+
+- Username/password authentication
+- Passkeys and WebAuthn support
+- Multi-factor authentication (MFA)
+- Social login and enterprise identity providers
+- LDAP authentication
+- Self-registration and account recovery
+- Fully customizable branding and themes
+
+## Architecture
+
+The Login UI is a Next.js application (`apps/login`) that:
+
+- Uses server-side rendering (SSR) for optimal security and performance
+- Communicates with ZITADEL APIs via connectRPC, gRPC, and HTTP/JSON
+- Manages authentication state through sessions and cookies
+- Supports both OIDC and SAML authentication flows
+
+### Key Components
+
+**Routing**: Built on Next.js App Router with routes defined in `src/app/`
+
+**Authentication State**: Managed via URL parameters (Auth Requests) and session cookies
+
+**Data Fetching**: Server-side interaction with ZITADEL APIs using `@zitadel/client`
+
+**Styling**: TailwindCSS with environment-driven theme configuration
+
+## Customizing the Login UI
+
+ZITADEL's Login UI supports extensive customization through environment variables and branding settings.
+
+### Theme Configuration
+
+Configure the visual appearance using environment variables:
+
+```bash
+# Roundness - Controls corner styling
+NEXT_PUBLIC_THEME_ROUNDNESS=mid  # edgy | mid | full
+
+# Layout - Controls page structure
+NEXT_PUBLIC_THEME_LAYOUT=side-by-side  # side-by-side | top-to-bottom
+
+# Spacing - Controls padding and spacing
+NEXT_PUBLIC_THEME_SPACING=regular  # regular | compact
+
+# Appearance - Overall design philosophy
+NEXT_PUBLIC_THEME_APPEARANCE=material  # flat | material
+
+# Background Image (optional)
+NEXT_PUBLIC_THEME_BACKGROUND_IMAGE=/images/background.jpg
+```
+
+### Theme Options Explained
+
+#### Roundness
+
+- **edgy**: Sharp, rectangular corners for modern, corporate aesthetics
+- **mid**: Medium rounded corners for balanced, professional appearance
+- **full**: Fully rounded corners for friendly, approachable design
+
+#### Layout
+
+- **side-by-side**: Brand section on left, form on right (desktop view)
+- **top-to-bottom**: Brand section on top, form below (mobile-first)
+
+The layout automatically adapts to mobile screens below 768px width.
+
+#### Spacing
+
+- **regular**: Standard spacing with comfortable padding
+- **compact**: Tighter spacing for information-dense layouts
+
+#### Appearance
+
+- **flat**: Minimal flat design with subtle borders and normal typography
+- **material**: Material Design inspired with elevated cards and proper contrast
+
+### Example Configurations
+
+<CodeGroup>
+
+```bash Tech Startup
+NEXT_PUBLIC_THEME_ROUNDNESS=full
+NEXT_PUBLIC_THEME_LAYOUT=side-by-side
+NEXT_PUBLIC_THEME_SPACING=regular
+NEXT_PUBLIC_THEME_APPEARANCE=material
+```
+
+```bash Corporate Bank
+NEXT_PUBLIC_THEME_ROUNDNESS=edgy
+NEXT_PUBLIC_THEME_LAYOUT=top-to-bottom
+NEXT_PUBLIC_THEME_SPACING=regular
+NEXT_PUBLIC_THEME_APPEARANCE=material
+```
+
+```bash Minimal SaaS
+NEXT_PUBLIC_THEME_ROUNDNESS=mid
+NEXT_PUBLIC_THEME_LAYOUT=side-by-side
+NEXT_PUBLIC_THEME_SPACING=compact
+NEXT_PUBLIC_THEME_APPEARANCE=flat
+```
+
+</CodeGroup>
+
+### Organization Branding
+
+Beyond environment variables, you can customize branding per organization through the ZITADEL Console:
+
+1. Navigate to your organization settings
+2. Select **Branding**
+3. Configure:
+   - Logo (light and dark mode)
+   - Primary and background colors
+   - Font family
+   - Custom CSS (advanced)
+
+The Login UI automatically applies organization-specific branding based on the authentication context.
+
+## Authentication Flow
+
+The Login UI handles multiple authentication protocols:
+
+### OIDC Flow
+
+<Steps>
+
+<Step title="Flow Initiation">
+Application redirects to ZITADEL with an OIDC authorization request (request ID starts with `oidc_`).
+</Step>
+
+<Step title="User Authentication">
+Login UI presents authentication options based on the organization's login policy.
+</Step>
+
+<Step title="Session Creation">
+Successful authentication creates a session with appropriate checks (password, passkey, MFA, etc.).
+</Step>
+
+<Step title="Redirect">
+User is redirected back to the application with authorization code or tokens.
+</Step>
+
+</Steps>
+
+### SAML Flow
+
+Similar to OIDC but initiated with SAML authentication requests (request ID starts with `saml_`).
+
+## Login Policy Configuration
+
+The Login UI behavior is controlled by the Login Policy set at the Instance or Organization level.
+
+### Key Settings
+
+**AllowUsernamePassword**: Enable/disable username and password authentication
+
+**AllowRegister**: Allow users to self-register
+
+**AllowExternalIDP**: Enable social login and enterprise identity providers
+
+**ForceMFA**: Require multi-factor authentication for all users
+
+**ForceMFALocalOnly**: Require MFA only for local accounts (not federated users)
+
+**PasswordlessType**: Allow passwordless authentication with passkeys
+
+**HidePasswordReset**: Hide the password reset option
+
+**IgnoreUnknownUsernames**: Don't reveal whether a username exists (security)
+
+**AllowDomainDiscovery**: Enable automatic organization discovery based on email domain
+
+**DefaultRedirectURI**: Default redirect after successful authentication
+
+### Configuring Login Policy via API
+
+```bash
+curl -X POST https://$ZITADEL_DOMAIN/v2/settings/login_policy \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "allowUsernamePassword": true,
+    "allowRegister": true,
+    "allowExternalIdp": true,
+    "forceMfa": false,
+    "passwordlessType": "PASSWORDLESS_TYPE_ALLOWED"
+  }'
+```
+
+## Advanced Customization
+
+For organizations requiring deeper customization:
+
+### Custom Login UI
+
+You can build your own login interface using the ZITADEL Session API. This approach gives you complete control over the UI while leveraging ZITADEL's authentication backend.
+
+See the [Custom Login UI guide](/guides/integrate/login-ui/username-password) for implementation details.
+
+### Actions and Webhooks
+
+Use ZITADEL Actions to customize authentication flows:
+
+- Modify tokens before issuance
+- Add custom claims
+- Trigger external systems during login
+- Implement custom business logic
+
+Learn more in the [Actions documentation](/concepts/features/actions_v2).
+
+## Responsive Design
+
+The Login UI automatically adapts to different screen sizes:
+
+- **Desktop** (\>768px): Uses configured layout (side-by-side or top-to-bottom)
+- **Mobile** (\<768px): Always uses top-to-bottom layout for optimal mobile experience
+
+The responsive behavior is handled by the `useResponsiveLayout` hook in client components.
+
+## Development
+
+To run the Login UI locally for development:
+
+```bash
+# From repository root
+pnpm nx run @zitadel/login:dev
+```
+
+### Available Commands
+
+```bash
+# Build for production
+pnpm nx run @zitadel/login:build
+
+# Run tests
+pnpm nx run @zitadel/login:test
+
+# Run unit tests only
+pnpm nx run @zitadel/login:test-unit
+
+# Run integration tests
+pnpm nx run @zitadel/login:test-integration
+
+# Lint
+pnpm nx run @zitadel/login:lint
+
+# Build Docker image
+pnpm nx run @zitadel/login:pack
+```
+
+## Best Practices
+
+<Note>
+**User Experience**: Choose theme settings that align with your brand identity and user expectations. Test on multiple devices to ensure a consistent experience.
+</Note>
+
+<Note>
+**Security**: Always use HTTPS in production. Configure appropriate CORS policies and validate redirect URIs.
+</Note>
+
+<Note>
+**Performance**: The Login UI uses server-side rendering for optimal initial load times. Ensure your ZITADEL instance has adequate resources for production workloads.
+</Note>
+
+## Related Documentation
+
+- [Hosted Login V2](/guides/integrate/login/hosted-login)
+- [Custom Branding](/guides/manage/customize/branding)
+- [Login Policy Configuration](/guides/manage/console/default-settings)
+- [Session API](/apis/resources/user_service/session-service)

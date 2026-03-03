@@ -1,0 +1,74 @@
+---
+title: Delete User
+description: Delete a user from the ZITADEL system
+---
+
+## Endpoint
+
+```
+DELETE /v2/users/{user_id}
+```
+
+## Description
+
+The state of the user will be changed to 'deleted'. The user will not be able to log in anymore. Endpoints requesting this user will return an error 'User not found'.
+
+## Required Permission
+
+- `authenticated`
+
+## Path Parameters
+
+<ParamField path="user_id" type="string" required>
+  The unique identifier of the user to delete.
+</ParamField>
+
+## Response
+
+<ResponseField name="details" type="object">
+  Metadata about the deletion.
+  
+  <ResponseField name="sequence" type="string">
+    Sequence number of the change.
+  </ResponseField>
+  
+  <ResponseField name="changeDate" type="timestamp">
+    Timestamp of when the user was deleted.
+  </ResponseField>
+  
+  <ResponseField name="resourceOwner" type="string">
+    Organization ID that owned the user.
+  </ResponseField>
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X DELETE https://your-domain.zitadel.cloud/v2/users/d654e6ba-70a3-48ef-a95d-37c8d8a7901a \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+## Example Response
+
+```json
+{
+  "details": {
+    "sequence": "1236",
+    "changeDate": "2024-03-15T12:00:00Z",
+    "resourceOwner": "69629026806489455"
+  }
+}
+```
+
+## Error Responses
+
+- `404 Not Found` - User ID does not exist
+- `403 Forbidden` - Insufficient permissions
+- `401 Unauthorized` - Not authenticated
+
+## Important Notes
+
+- Deleting a user is permanent and cannot be undone
+- The user will immediately lose access to all applications
+- Consider using deactivation instead if you may need to restore access later
+- All user data, including authentication methods, will be marked as deleted

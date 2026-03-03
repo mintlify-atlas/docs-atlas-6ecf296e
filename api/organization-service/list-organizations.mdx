@@ -1,0 +1,173 @@
+---
+title: List Organizations
+description: Search for organizations in your ZITADEL instance
+---
+
+## Endpoint
+
+```
+POST /v2/organizations/_search
+```
+
+## Description
+
+Search for Organizations. By default, all organizations of the instance that you have permission to read will be returned. Make sure to include a limit and sorting for pagination.
+
+## Required Permission
+
+- `org.read`
+
+## Request Body
+
+<ParamField body="query" type="object">
+  List limitations and ordering.
+  
+  <ParamField body="offset" type="string">
+    Offset for pagination.
+  </ParamField>
+  
+  <ParamField body="limit" type="integer">
+    Maximum number of results to return.
+  </ParamField>
+  
+  <ParamField body="asc" type="boolean">
+    Sort in ascending order.
+  </ParamField>
+</ParamField>
+
+<ParamField body="sortingColumn" type="string">
+  The field the result is sorted by. Options:
+  - `ORGANIZATION_FIELD_NAME_NAME`
+  - `ORGANIZATION_FIELD_NAME_CREATION_DATE`
+  - `ORGANIZATION_FIELD_NAME_CHANGE_DATE`
+</ParamField>
+
+<ParamField body="queries" type="array">
+  Criteria the client is looking for.
+  
+  <ParamField body="nameQuery" type="object">
+    Filter by organization name.
+    
+    <ParamField body="name" type="string">
+      Name to search for.
+    </ParamField>
+    
+    <ParamField body="method" type="string">
+      Search method.
+    </ParamField>
+  </ParamField>
+  
+  <ParamField body="domainQuery" type="object">
+    Filter by organization domain.
+    
+    <ParamField body="domain" type="string">
+      Domain to search for.
+    </ParamField>
+    
+    <ParamField body="method" type="string">
+      Search method.
+    </ParamField>
+  </ParamField>
+  
+  <ParamField body="stateQuery" type="object">
+    Filter by organization state.
+    
+    <ParamField body="state" type="string">
+      State to filter by.
+    </ParamField>
+  </ParamField>
+</ParamField>
+
+## Response
+
+<ResponseField name="details" type="object">
+  Details of organizations results.
+  
+  <ResponseField name="totalResult" type="string">
+    Total number of organizations matching the query.
+  </ResponseField>
+  
+  <ResponseField name="processedSequence" type="string">
+    Processed sequence number.
+  </ResponseField>
+  
+  <ResponseField name="timestamp" type="timestamp">
+    Query timestamp.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="sortingColumn" type="string">
+  The sorting column used.
+</ResponseField>
+
+<ResponseField name="result" type="array">
+  List of organizations matching the query.
+  
+  <ResponseField name="id" type="string">
+    Unique identifier of the organization.
+  </ResponseField>
+  
+  <ResponseField name="details" type="object">
+    Organization details.
+  </ResponseField>
+  
+  <ResponseField name="state" type="string">
+    Current state of the organization.
+  </ResponseField>
+  
+  <ResponseField name="name" type="string">
+    Name of the organization.
+  </ResponseField>
+  
+  <ResponseField name="primaryDomain" type="string">
+    Primary domain of the organization.
+  </ResponseField>
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X POST https://your-domain.zitadel.cloud/v2/organizations/_search \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": {
+      "limit": 100,
+      "asc": true
+    },
+    "sortingColumn": "ORGANIZATION_FIELD_NAME_NAME",
+    "queries": [
+      {
+        "stateQuery": {
+          "state": "ORGANIZATION_STATE_ACTIVE"
+        }
+      }
+    ]
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "details": {
+    "totalResult": "25",
+    "processedSequence": "2000",
+    "timestamp": "2024-03-15T14:00:00Z"
+  },
+  "sortingColumn": "ORGANIZATION_FIELD_NAME_NAME",
+  "result": [
+    {
+      "id": "69629026806489455",
+      "state": "ORGANIZATION_STATE_ACTIVE",
+      "name": "ACME Corporation",
+      "primaryDomain": "acme-corporation.zitadel.cloud"
+    }
+  ]
+}
+```
+
+## Error Responses
+
+- `400 Bad Request` - Invalid list query
+- `403 Forbidden` - Insufficient permissions

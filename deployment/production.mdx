@@ -1,0 +1,749 @@
+---
+title: Production Best Practices
+description: Security hardening, scaling, and operational guidance for production ZITADEL deployments
+---
+
+Guidance for running ZITADEL securely and reliably in production environments.
+
+## Security Hardening
+
+### Masterkey Management
+
+The masterkey is the most critical secret in your ZITADEL deployment.
+
+<Warning>
+Losing the masterkey makes all encrypted data permanently unrecoverable. Treat it like a database backup encryption key.
+</Warning>
+
+<Steps>
+
+<Step title="Generate a cryptographically random masterkey">
+
+```bash
+# Must be exactly 32 characters
+tr -dc A-Za-z0-9 </dev/urandom | head -c 32
+```
+
+</Step>
+
+<Step title="Store in a secrets manager">
+
+**AWS Secrets Manager:**
+```bash
+aws secretsmanager create-secret \
+  --name zitadel/masterkey \
+  --secret-string "$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32)"
+```
+
+**HashiCorp Vault:**
+```bash
+vault kv put secret/zitadel/masterkey value="$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32)"
+```
+
+**Google Secret Manager:**
+```bash
+echo -n "$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32)" | \
+  gcloud secrets create zitadel-masterkey --data-file=-
+```
+
+</Step>
+
+<Step title="Create encrypted backups">
+
+Store encrypted copies of the masterkey in multiple secure locations:
+
+```bash
+# Encrypt with GPG
+echo -n "YOUR_MASTERKEY" | gpg --encrypt --armor \
+  --recipient ops@example.com > masterkey.gpg
+
+# Store in secure offline location
+```
+
+</Step>
+
+<Step title="Implement key rotation procedure">
+
+Document and test your key rotation process before you need it.
+
+</Step>
+
+</Steps>
+
+### Database Security
+
+#### SSL/TLS Enforcement
+
+<CodeGroup>
+
+```bash Docker Compose
+ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE=verify-full
+ZITADEL_DATABASE_POSTGRES_USER_SSL_ROOTCERT=/path/to/ca.pem
+ZITADEL_DATABASE_POSTGRES_ADMIN_SSL_MODE=verify-full
+ZITADEL_DATABASE_POSTGRES_ADMIN_SSL_ROOTCERT=/path/to/ca.pem
+```
+
+```yaml Kubernetes
+zitadel:
+  configmapConfig:
+    Database:
+      postgres:
+        User:
+          SSL:
+            Mode: verify-full
+            RootCert: |
+              -----BEGIN CERTIFICATE-----
+              MIIDQTCCAimgAwIBAgITBmyfz...
+              -----END CERTIFICATE-----
+        Admin:
+          SSL:
+            Mode: verify-full
+            RootCert: |
+              -----BEGIN CERTIFICATE-----
+              MIIDQTCCAimgAwIBAgITBmyfz...
+              -----END CERTIFICATE-----
+```
+
+</CodeGroup>
+
+#### Credential Management
+
+<Warning>
+Never use default credentials in production. Never commit credentials to version control.
+</Warning>
+
+**Docker Compose:**
+```bash
+# Generate strong passwords
+POSTGRES_ADMIN_PASSWORD=$(openssl rand -base64 32)
+POSTGRES_ZITADEL_PASSWORD=$(openssl rand -base64 32)
+
+# Store in .env (add to .gitignore)
+echo "POSTGRES_ADMIN_PASSWORD=${POSTGRES_ADMIN_PASSWORD}" >> .env
+echo "POSTGRES_ZITADEL_PASSWORD=${POSTGRES_ZITADEL_PASSWORD}" >> .env
+```
+
+**Kubernetes:**
+```bash
+kubectl create secret generic zitadel-db-credentials \
+  --from-literal=user-password="$(openssl rand -base64 32)" \
+  --from-literal=admin-password="$(openssl rand -base64 32)" \
+  -n zitadel
+```
+
+#### Connection Limits
+
+Configure appropriate connection pool settings:
+
+```bash
+# For small deployments (< 1000 users)
+ZITADEL_DATABASE_POSTGRES_MAXOPENCONNS=10
+ZITADEL_DATABASE_POSTGRES_MAXIDLECONNS=5
+
+# For medium deployments (1000-10000 users)
+ZITADEL_DATABASE_POSTGRES_MAXOPENCONNS=25
+ZITADEL_DATABASE_POSTGRES_MAXIDLECONNS=10
+
+# For large deployments (> 10000 users)
+ZITADEL_DATABASE_POSTGRES_MAXOPENCONNS=50
+ZITADEL_DATABASE_POSTGRES_MAXIDLECONNS=20
+```
+
+### Network Security
+
+#### Ingress Configuration
+
+Enable TLS 1.2+ only:
+
+**NGINX Ingress:**
+```yaml
+ingress:
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-protocols: "TLSv1.2 TLSv1.3"
+    nginx.ingress.kubernetes.io/ssl-ciphers: "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384"
+```
+
+**Traefik:**
+```yaml
+proxy:
+  command:
+    - --entrypoints.websecure.http.tls.options=default@file
+  volumes:
+    - ./tls-options.yaml:/tls-options.yaml
+```
+
+```yaml tls-options.yaml
+http:
+  tls:
+    options:
+      default:
+        minVersion: VersionTLS12
+        cipherSuites:
+          - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+          - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+          - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+          - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+```
+
+#### Network Policies (Kubernetes)
+
+Restrict pod-to-pod communication:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: zitadel-network-policy
+  namespace: zitadel
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: zitadel
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    # Allow database access
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgresql
+      ports:
+        - protocol: TCP
+          port: 5432
+    # Allow DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow HTTPS for external integrations
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+```
+
+### Webhook/Action Security
+
+Restrict webhook targets to prevent SSRF:
+
+```bash
+# Block private networks and localhost
+ZITADEL_EXECUTIONS_DENYLIST=localhost,127.0.0.0/8,::1,0.0.0.0,::,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+
+ZITADEL_ACTIONS_HTTP_DENYLIST=localhost,127.0.0.0/8,::1,0.0.0.0,::,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+```
+
+## High Availability
+
+### Multi-Instance Deployment
+
+Run multiple ZITADEL instances for redundancy.
+
+**Docker Compose:**
+```yaml
+zitadel-api:
+  deploy:
+    replicas: 3
+    restart_policy:
+      condition: on-failure
+      delay: 5s
+      max_attempts: 3
+```
+
+**Kubernetes:**
+```yaml
+replicaCount: 3
+
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: In
+              values:
+                - zitadel
+        topologyKey: kubernetes.io/hostname
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+```
+
+### Database High Availability
+
+#### PostgreSQL Replication
+
+Use managed database services with automatic failover:
+
+- **AWS RDS**: Multi-AZ deployment
+- **Google Cloud SQL**: High availability configuration
+- **Azure Database**: Zone-redundant deployment
+
+For self-managed:
+- **Patroni**: PostgreSQL HA cluster manager
+- **Stolon**: Cloud-native PostgreSQL HA
+- **Crunchy PostgreSQL Operator**: Kubernetes-native HA
+
+#### Connection Pool Configuration
+
+```bash
+# Increase connection pool for HA
+ZITADEL_DATABASE_POSTGRES_MAXOPENCONNS=25
+ZITADEL_DATABASE_POSTGRES_MAXCONNLIFETIME=15m
+ZITADEL_DATABASE_POSTGRES_MAXCONNIDLETIME=5m
+```
+
+### Health Checks
+
+**Docker Compose:**
+```yaml
+zitadel-api:
+  healthcheck:
+    test: ["/app/zitadel", "ready"]
+    interval: 10s
+    timeout: 5s
+    retries: 3
+    start_period: 30s
+```
+
+**Kubernetes:**
+```yaml
+readinessProbe:
+  httpGet:
+    path: /debug/ready
+    port: 8080
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+livenessProbe:
+  httpGet:
+    path: /debug/healthz
+    port: 8080
+  initialDelaySeconds: 60
+  periodSeconds: 30
+  timeoutSeconds: 5
+  failureThreshold: 3
+```
+
+## Performance Optimization
+
+### Database Tuning
+
+#### PostgreSQL Configuration
+
+```sql
+-- Recommended settings for production
+ALTER SYSTEM SET shared_buffers = '256MB';
+ALTER SYSTEM SET effective_cache_size = '1GB';
+ALTER SYSTEM SET maintenance_work_mem = '64MB';
+ALTER SYSTEM SET checkpoint_completion_target = 0.9;
+ALTER SYSTEM SET wal_buffers = '16MB';
+ALTER SYSTEM SET default_statistics_target = 100;
+ALTER SYSTEM SET random_page_cost = 1.1;
+ALTER SYSTEM SET effective_io_concurrency = 200;
+ALTER SYSTEM SET work_mem = '4MB';
+ALTER SYSTEM SET min_wal_size = '1GB';
+ALTER SYSTEM SET max_wal_size = '4GB';
+SELECT pg_reload_conf();
+```
+
+#### Indexes
+
+ZITADEL creates necessary indexes during setup. Monitor query performance:
+
+```sql
+-- Find missing indexes
+SELECT
+  schemaname,
+  tablename,
+  attname,
+  n_distinct,
+  correlation
+FROM pg_stats
+WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
+  AND n_distinct > 100
+  AND correlation < 0.1;
+
+-- Monitor slow queries
+ALTER SYSTEM SET log_min_duration_statement = 1000;
+SELECT pg_reload_conf();
+```
+
+### Caching Strategy
+
+#### Redis for Multi-Instance
+
+Enable Redis caching for distributed deployments:
+
+<CodeGroup>
+
+```bash Docker Compose
+ZITADEL_CACHES_CONNECTORS_REDIS_ENABLED=true
+ZITADEL_CACHES_CONNECTORS_REDIS_ADDR=redis:6379
+ZITADEL_CACHES_CONNECTORS_REDIS_POOLSIZE=25
+ZITADEL_CACHES_CONNECTORS_REDIS_MINIDLE=5
+ZITADEL_CACHES_INSTANCE_CONNECTOR=redis
+ZITADEL_CACHES_MILESTONES_CONNECTOR=redis
+ZITADEL_CACHES_ORGANIZATION_CONNECTOR=redis
+```
+
+```yaml Kubernetes
+redis:
+  enabled: true
+  master:
+    persistence:
+      enabled: true
+      size: 8Gi
+
+zitadel:
+  configmapConfig:
+    Caches:
+      Connectors:
+        Redis:
+          Enabled: true
+          Addr: zitadel-redis-master:6379
+          PoolSize: 25
+      Instance:
+        Connector: redis
+      Milestones:
+        Connector: redis
+      Organization:
+        Connector: redis
+```
+
+</CodeGroup>
+
+#### Cache Tuning
+
+```bash
+# Cache TTLs
+ZITADEL_CACHES_INSTANCE_MAXAGE=1h
+ZITADEL_CACHES_INSTANCE_LASTUSEAGE=10m
+ZITADEL_CACHES_MILESTONES_MAXAGE=1h
+ZITADEL_CACHES_ORGANIZATION_MAXAGE=1h
+```
+
+### Resource Allocation
+
+#### Container Resources
+
+**Small (< 1000 users):**
+```yaml
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+```
+
+**Medium (1000-10000 users):**
+```yaml
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+```
+
+**Large (> 10000 users):**
+```yaml
+resources:
+  requests:
+    cpu: 1000m
+    memory: 1Gi
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+```
+
+### Projection Tuning
+
+Adjust projection settings for performance:
+
+```bash
+# Increase bulk processing
+ZITADEL_PROJECTIONS_BULKLIMIT=500
+
+# Reduce requeue frequency for stable workloads
+ZITADEL_PROJECTIONS_REQUEUEEVERY=120s
+
+# Limit parallel triggers to 1/3 of max connections
+ZITADEL_PROJECTIONS_MAXPARALLELTRIGGERS=8
+```
+
+## Monitoring and Alerting
+
+### Metrics Collection
+
+#### Prometheus Integration
+
+```yaml Kubernetes
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+
+zitadel:
+  configmapConfig:
+    Instrumentation:
+      Metric:
+        Exporter:
+          Type: prometheus
+```
+
+#### Key Metrics to Monitor
+
+```yaml
+# Prometheus alerting rules
+groups:
+  - name: zitadel
+    rules:
+      - alert: ZitadelHighErrorRate
+        expr: rate(zitadel_http_requests_total{code=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate in ZITADEL"
+      
+      - alert: ZitadelDatabaseConnectionPoolExhausted
+        expr: zitadel_database_pool_open_connections >= zitadel_database_pool_max_connections
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database connection pool exhausted"
+      
+      - alert: ZitadelHighResponseTime
+        expr: histogram_quantile(0.95, rate(zitadel_http_request_duration_seconds_bucket[5m])) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High response time (p95 > 1s)"
+```
+
+### Distributed Tracing
+
+Enable OpenTelemetry tracing:
+
+```bash
+ZITADEL_INSTRUMENTATION_SERVICENAME=zitadel
+ZITADEL_INSTRUMENTATION_TRACE_FRACTION=0.1  # Sample 10% in production
+ZITADEL_INSTRUMENTATION_TRACE_EXPORTER_TYPE=grpc
+ZITADEL_INSTRUMENTATION_TRACE_EXPORTER_ENDPOINT=tempo.monitoring.svc:4317
+```
+
+### Structured Logging
+
+```bash
+# Production logging configuration
+ZITADEL_INSTRUMENTATION_LOG_LEVEL=INFO
+ZITADEL_INSTRUMENTATION_LOG_STDERR=json
+ZITADEL_INSTRUMENTATION_LOG_ADDSOURCE=false
+ZITADEL_INSTRUMENTATION_LOG_STREAMS=runtime,request,event_handler
+ZITADEL_INSTRUMENTATION_LOG_ERRORS_REPORTLOCATION=true
+ZITADEL_INSTRUMENTATION_LOG_ERRORS_STACKTRACE=true
+```
+
+## Backup and Disaster Recovery
+
+### Database Backups
+
+#### Automated Backups
+
+**PostgreSQL:**
+```bash
+#!/bin/bash
+# backup-zitadel.sh
+set -e
+
+BACKUP_DIR="/backups/zitadel"
+DATE=$(date +%Y%m%d_%H%M%S)
+BACKUP_FILE="${BACKUP_DIR}/zitadel_${DATE}.sql.gz"
+
+# Create backup
+pg_dump -h postgres.example.com -U postgres zitadel | gzip > "${BACKUP_FILE}"
+
+# Encrypt backup
+gpg --encrypt --recipient ops@example.com "${BACKUP_FILE}"
+
+# Upload to S3
+aws s3 cp "${BACKUP_FILE}.gpg" s3://backups/zitadel/
+
+# Cleanup old backups (keep 30 days)
+find "${BACKUP_DIR}" -name "zitadel_*.sql.gz*" -mtime +30 -delete
+```
+
+**Kubernetes CronJob:**
+```yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: zitadel-backup
+  namespace: zitadel
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: backup
+            image: postgres:17-alpine
+            command:
+            - /bin/sh
+            - -c
+            - |
+              pg_dump -h $DB_HOST -U postgres zitadel | \
+              gzip | \
+              aws s3 cp - s3://backups/zitadel/zitadel_$(date +%Y%m%d_%H%M%S).sql.gz
+            env:
+            - name: DB_HOST
+              value: postgres.database.svc
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: password
+          restartPolicy: OnFailure
+```
+
+#### Backup Verification
+
+Regularly test backup restoration:
+
+```bash
+# Restore to test database
+gunzip -c backup.sql.gz | psql -h test-postgres -U postgres -d zitadel_test
+
+# Verify data integrity
+psql -h test-postgres -U postgres -d zitadel_test -c "
+  SELECT COUNT(*) FROM eventstore.events;
+  SELECT COUNT(*) FROM projections.users13;
+"
+```
+
+### Disaster Recovery Plan
+
+<Steps>
+
+<Step title="Document recovery procedures">
+
+Create a runbook with:
+- Backup restoration steps
+- Masterkey retrieval procedure
+- Database connection strings
+- DNS/domain configuration
+- Emergency contacts
+
+</Step>
+
+<Step title="Test recovery quarterly">
+
+Perform full recovery drills:
+1. Restore database from backup
+2. Deploy ZITADEL with correct masterkey
+3. Verify authentication flows
+4. Document time-to-recovery
+
+</Step>
+
+<Step title="Maintain off-site backups">
+
+Store backups in multiple geographic regions:
+```bash
+# Primary region
+aws s3 cp backup.sql.gz s3://backups-us-east-1/zitadel/
+
+# Secondary region
+aws s3 cp backup.sql.gz s3://backups-eu-west-1/zitadel/
+```
+
+</Step>
+
+</Steps>
+
+## Compliance and Auditing
+
+### Access Logging
+
+```bash
+# Enable comprehensive access logs
+ZITADEL_LOGSTORE_ACCESS_STDOUT_ENABLED=true
+```
+
+Ship logs to a SIEM or log aggregation platform:
+
+**Fluent Bit (Kubernetes):**
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluent-bit-config
+data:
+  fluent-bit.conf: |
+    [INPUT]
+        Name tail
+        Path /var/log/containers/zitadel-*.log
+        Parser docker
+        Tag zitadel.access
+    
+    [OUTPUT]
+        Name s3
+        Match zitadel.access
+        bucket compliance-logs
+        region us-east-1
+        store_dir /tmp/fluent-bit/s3
+```
+
+### Audit Trail
+
+ZITADEL stores all events in the eventstore:
+
+```sql
+-- Query user authentication events
+SELECT
+  created_at,
+  event_type,
+  aggregate_type,
+  aggregate_id,
+  payload
+FROM eventstore.events
+WHERE event_type IN (
+  'user.human.signed.in',
+  'user.human.signin.failed',
+  'user.locked',
+  'user.unlocked'
+)
+ORDER BY created_at DESC
+LIMIT 100;
+```
+
+## Next Steps
+
+- [Docker Compose Deployment](/deployment/docker-compose) - Get started with deployment
+- [Kubernetes Deployment](/deployment/kubernetes) - Production-grade Kubernetes setup
+- [Configuration Reference](/deployment/configuration) - Complete configuration options

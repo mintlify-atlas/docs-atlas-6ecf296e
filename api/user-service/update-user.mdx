@@ -1,0 +1,165 @@
+---
+title: Update User
+description: Partially update an existing user in ZITADEL
+---
+
+## Endpoint
+
+```
+PATCH /v2/users/{user_id}
+```
+
+## Description
+
+Partially update an existing user. You can change the user's profile, email, phone, and password. If you change the email or phone, you can specify how the ownership should be verified.
+
+## Required Permission
+
+- `user.write`
+
+## Path Parameters
+
+<ParamField path="user_id" type="string" required>
+  The unique identifier of the user to update.
+</ParamField>
+
+## Request Body
+
+<ParamField body="username" type="string">
+  New username for the user. Must be unique within the organization.
+</ParamField>
+
+<ParamField body="profile" type="object">
+  Profile information to update (for human users).
+  
+  <ParamField body="givenName" type="string">
+    Updated first name.
+  </ParamField>
+  
+  <ParamField body="familyName" type="string">
+    Updated last name.
+  </ParamField>
+  
+  <ParamField body="nickName" type="string">
+    Updated nickname.
+  </ParamField>
+  
+  <ParamField body="displayName" type="string">
+    Updated display name.
+  </ParamField>
+  
+  <ParamField body="preferredLanguage" type="string">
+    Updated preferred language.
+  </ParamField>
+  
+  <ParamField body="gender" type="string">
+    Updated gender.
+  </ParamField>
+</ParamField>
+
+<ParamField body="email" type="object">
+  Email information to update.
+  
+  <ParamField body="email" type="string">
+    New email address.
+  </ParamField>
+  
+  <ParamField body="isVerified" type="boolean">
+    Whether to mark the email as verified.
+  </ParamField>
+  
+  <ParamField body="returnCode" type="boolean">
+    Return the verification code instead of sending it via email.
+  </ParamField>
+</ParamField>
+
+<ParamField body="phone" type="object">
+  Phone information to update.
+  
+  <ParamField body="phone" type="string">
+    New phone number in E.164 format.
+  </ParamField>
+  
+  <ParamField body="isVerified" type="boolean">
+    Whether to mark the phone as verified.
+  </ParamField>
+  
+  <ParamField body="returnCode" type="boolean">
+    Return the verification code instead of sending it via SMS.
+  </ParamField>
+</ParamField>
+
+<ParamField body="password" type="object">
+  Password information to update.
+  
+  <ParamField body="password" type="string">
+    New password for the user.
+  </ParamField>
+  
+  <ParamField body="changeRequired" type="boolean">
+    Require the user to change the password on next login.
+  </ParamField>
+</ParamField>
+
+## Response
+
+<ResponseField name="details" type="object">
+  Metadata about the update.
+  
+  <ResponseField name="sequence" type="string">
+    Sequence number of the change.
+  </ResponseField>
+  
+  <ResponseField name="changeDate" type="timestamp">
+    Timestamp of when the user was updated.
+  </ResponseField>
+  
+  <ResponseField name="resourceOwner" type="string">
+    Organization ID that owns the user.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="emailCode" type="string">
+  Email verification code if requested.
+</ResponseField>
+
+<ResponseField name="phoneCode" type="string">
+  Phone verification code if requested.
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X PATCH https://your-domain.zitadel.cloud/v2/users/d654e6ba-70a3-48ef-a95d-37c8d8a7901a \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "profile": {
+      "displayName": "Minnie M. Mouse",
+      "preferredLanguage": "de"
+    },
+    "email": {
+      "email": "minnie.mouse@example.com",
+      "isVerified": false
+    }
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "details": {
+    "sequence": "1235",
+    "changeDate": "2024-03-15T11:45:00Z",
+    "resourceOwner": "69629026806489455"
+  }
+}
+```
+
+## Error Responses
+
+- `404 Not Found` - User ID does not exist
+- `409 Conflict` - Username already taken
+- `400 Bad Request` - Invalid request data
+- `403 Forbidden` - Insufficient permissions

@@ -1,0 +1,239 @@
+---
+title: 'Architecture'
+description: 'Learn about ZITADEL''s architectural design, components, and how they work together to provide a scalable identity management system'
+---
+
+## Overview
+
+ZITADEL is built on a modern, event-driven architecture that combines the benefits of relational databases with comprehensive event sourcing for audit trails. The system is designed for horizontal scalability, zero-downtime updates, and strict multi-tenancy isolation.
+
+## Core Architectural Principles
+
+### Relational Core, Event-Driven Soul
+
+ZITADEL uses a hybrid data model that provides the best of both worlds:
+
+- **Relational data as the system of record**: Current state is stored in PostgreSQL tables for fast queries and ACID compliance
+- **Events for complete audit history**: Every mutation is written as an immutable event to a separate event table
+- **Transitioning architecture**: The backend is transitioning to a fully relational design while maintaining event persistence for history and audit trails
+
+<Note>
+Events are **not** the system of record in ZITADEL. Relational data holds the current state, while events provide a complete, immutable history of all changes.
+</Note>
+
+### API-First Design
+
+Every feature in ZITADEL is accessible through the API before the UI is built:
+
+- **Multiple transport protocols**: connectRPC (primary for V2 API), gRPC, and HTTP/JSON
+- **Resource-oriented design**: V2 APIs follow REST principles with resources as first-class entities
+- **Strongly typed**: Protobuf definitions generate type-safe clients in multiple languages
+
+<CodeGroup>
+```bash V2 REST API Example
+curl -X POST https://$ZITADEL_DOMAIN/v2/users/human \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "alice@example.com",
+    "profile": { "givenName": "Alice", "familyName": "Smith" },
+    "email": { "email": "alice@example.com", "sendCode": {} }
+  }'
+```
+
+```go gRPC Client
+// connectRPC is the primary transport for V2 APIs
+import "github.com/zitadel/zitadel/pkg/grpc"
+
+client := user.NewUserServiceClient(conn)
+resp, err := client.CreateUser(ctx, req)
+```
+</CodeGroup>
+
+## System Components
+
+### Backend Services
+
+The ZITADEL backend is organized into several key components:
+
+#### Command Layer
+Handles all write operations and business logic:
+- Validates input and business rules
+- Generates events for mutations
+- Persists state to relational tables
+- Maintains transactional integrity
+
+#### Query Layer
+Optimized for read operations:
+- Queries relational data for current state
+- Supports filtering, sorting, and pagination
+- Provides efficient lookups by ID or other criteria
+
+#### Eventstore
+Manages the event history:
+- Persists all mutations as immutable events
+- Provides complete audit trail
+- Enables event streaming to external systems
+- Supports temporal queries (state at a point in time)
+
+<Accordion title="Eventstore Implementation Details">
+The eventstore is implemented in `/internal/eventstore/` and provides:
+
+- Event registration and type mapping
+- Aggregate-based event organization
+- Push operations for writing events
+- Filter and search capabilities for reading event history
+- Health checks for monitoring
+
+```go
+// Events are pushed in transactions
+events, err := es.Push(ctx, commands...)
+
+// Events can be queried by aggregate, type, or time range
+events, err := es.Filter(ctx, query)
+```
+</Accordion>
+
+#### API Services
+Multiple API endpoints support different protocols:
+- **V2 APIs**: Resource-oriented design using connectRPC
+- **V1 APIs**: Legacy context-based gRPC APIs
+- **OIDC/OAuth 2.0**: Standard authentication endpoints
+- **SAML 2.0**: Enterprise SSO integration
+- **SCIM 2.0**: User provisioning standard
+
+### Frontend Applications
+
+#### Console (Angular)
+Administrative interface for managing:
+- Organizations and users
+- Projects and applications
+- Identity providers
+- Instance settings and policies
+
+#### Login UI (Next.js)
+Customizable authentication interface:
+- Username/password login
+- Passkeys (FIDO2/WebAuthn)
+- Multi-factor authentication
+- Social and enterprise IdP login
+- Self-registration and password reset
+
+#### Documentation (Fumadocs)
+Comprehensive documentation site built with Next.js and React.
+
+## Data Storage
+
+### PostgreSQL Database
+
+ZITADEL requires PostgreSQL 14 or higher:
+
+- **Relational tables**: Store current state of all resources
+- **Event tables**: Separate tables for immutable event history
+- **Optimized indexes**: Fast lookups by ID, username, email, etc.
+- **Transactional integrity**: ACID guarantees for all operations
+
+### No External Dependencies for Sessions
+
+Unlike many IAM systems, ZITADEL does not require:
+- Redis or other session stores
+- Message queues for basic operation
+- External caching layers
+
+This simplifies deployment and enables horizontal scaling without coordination overhead.
+
+## Scalability & High Availability
+
+### Horizontal Scaling
+
+ZITADEL is designed to scale horizontally:
+
+- **Stateless application servers**: Any instance can handle any request
+- **Database connection pooling**: Efficient use of PostgreSQL connections
+- **Read replicas**: Separate read and write traffic for query optimization
+- **Load balancing**: Standard HTTP/gRPC load balancers work out of the box
+
+### Zero-Downtime Updates
+
+Updates can be performed without service interruption:
+
+1. New version deployed alongside current version
+2. Database migrations run automatically
+3. Traffic gradually shifted to new version
+4. Old version drained and removed
+
+<Warning>
+Always test database migrations in a staging environment before applying to production.
+</Warning>
+
+### Resource Isolation
+
+Strict isolation at multiple levels:
+
+- **Instance isolation**: Complete data separation between tenants
+- **Organization isolation**: Users and projects scoped to organizations
+- **Database-level isolation**: Queries automatically scoped by instance ID
+
+## Technology Stack
+
+### Backend
+- **Language**: Go (check `go.mod` for version)
+- **Database**: PostgreSQL 14+
+- **API Protocol**: connectRPC (V2), gRPC (V1), HTTP/JSON
+- **API Definition**: Protocol Buffers (protobuf)
+
+### Frontend
+- **Console**: Angular + RxJS
+- **Login UI**: Next.js + React
+- **Documentation**: Next.js + Fumadocs
+
+### Build & Orchestration
+- **Monorepo**: Nx for task orchestration
+- **Package Manager**: pnpm
+- **Code Generation**: Protobuf plugins for API clients
+
+## Deployment Architecture
+
+ZITADEL supports multiple deployment models:
+
+### Docker Compose
+Ideal for:
+- Getting started and development
+- Single-node deployments
+- Homelab and small-scale production
+
+See the [Docker Compose deployment guide](/deployment/docker-compose) for details.
+
+### Kubernetes
+Recommended for:
+- Production workloads
+- High availability requirements
+- Large-scale multi-tenant deployments
+
+See the [Kubernetes deployment guide](/deployment/kubernetes) for details.
+
+### Self-Hosted vs Cloud
+
+ZITADEL Cloud and self-hosted ZITADEL run **the same codebase**:
+- Same features and capabilities
+- Same API endpoints and behavior
+- Same configuration model
+
+The only differences are in infrastructure management and support.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Multi-Tenancy Model" icon="building" href="/concepts/multi-tenancy">
+    Learn about the hierarchical structure: System → Instance → Organization → Project
+  </Card>
+  <Card title="Event Sourcing" icon="clock-rotate-left" href="/concepts/event-sourcing">
+    Understand how ZITADEL maintains a complete audit trail of all changes
+  </Card>
+  <Card title="Authentication" icon="key" href="/concepts/authentication">
+    Explore authentication methods and protocols supported by ZITADEL
+  </Card>
+  <Card title="Authorization" icon="shield-check" href="/concepts/authorization">
+    Learn about ZITADEL's role-based access control and permission model
+  </Card>
+</CardGroup>

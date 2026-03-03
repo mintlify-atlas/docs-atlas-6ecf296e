@@ -1,0 +1,355 @@
+---
+title: API Quickstart
+description: Make your first API call to ZITADEL in minutes using a Personal Access Token
+---
+
+## Overview
+
+This quickstart guide will walk you through making your first API call to ZITADEL. You'll create a Personal Access Token (PAT) and use it to retrieve user information.
+
+**Time to complete**: ~5 minutes
+
+## Prerequisites
+
+- A ZITADEL account (Cloud or self-hosted)
+- Access to create service accounts
+- A terminal with `curl` installed (or any HTTP client)
+
+## Step 1: Create a Service Account
+
+Service accounts are machine users designed for API access.
+
+1. Log in to your ZITADEL Console
+2. Navigate to **Users** in the sidebar
+3. Switch to the **Service Accounts** tab
+4. Click **New**
+5. Fill in the details:
+   - **User Name**: `quickstart-api`
+   - **Name**: `Quickstart API Service Account`
+   - **Description**: `Service account for API quickstart`
+   - **Access Token Type**: Select **Bearer**
+6. Click **Create**
+
+You should see your new service account. Copy the **User ID** - you'll need it later.
+
+<Note>
+  **User ID format**: ZITADEL user IDs are numeric strings, e.g., `178366401571647008`
+</Note>
+
+## Step 2: Create a Personal Access Token
+
+Personal Access Tokens provide quick authentication for API calls.
+
+1. In your service account details, click on **Personal Access Tokens** in the left menu
+2. Click **New**
+3. Set an expiration date (e.g., 1 month from now)
+4. Click **Add**
+5. **Copy the token immediately** and save it securely
+
+<Warning>
+  You cannot retrieve the token again after closing this dialog. If you lose it, you'll need to create a new one.
+</Warning>
+
+Your PAT will look something like:
+```
+dEnGhPMCdGjUjGmLfGxIbQjUpUrrZhoirIWohsusbaWLlqpcFUjzfoFKMHxZkCXmAxLGbQfBaUPsWuKBCZmKYsoIYdFmjGnEsTkCEexNgOiuRlKulNqEGMXiXvcjhmKsWgDkqUNlDvLuYhuiUnpYv
+```
+
+## Step 3: Set Your Environment Variables
+
+To make the following steps easier, set these environment variables in your terminal:
+
+```bash
+# Your ZITADEL instance domain (without https://)
+export ZITADEL_DOMAIN="my-domain.zitadel.cloud"
+
+# Your Personal Access Token from Step 2
+export ZITADEL_PAT="dEnGhPMCdGjUjGmLfGxIbQjUpUrrZhoirIWohsusbaWLlqpcFUjzfoFKMHx..."
+
+# Your service account User ID from Step 1
+export USER_ID="178366401571647008"
+```
+
+Replace the values with your actual domain, token, and user ID.
+
+## Step 4: Make Your First API Call
+
+Now let's retrieve the service account information using the User Service API.
+
+### Get User by ID
+
+```bash
+curl -X GET "https://${ZITADEL_DOMAIN}/v2/users/${USER_ID}" \
+  -H "Authorization: Bearer ${ZITADEL_PAT}" \
+  -H "Content-Type: application/json"
+```
+
+**Expected Response**:
+
+```json
+{
+  "user": {
+    "userId": "178366401571647008",
+    "details": {
+      "sequence": "2",
+      "creationDate": "2024-03-03T10:15:30.123Z",
+      "changeDate": "2024-03-03T10:15:30.123Z",
+      "resourceOwner": "169629012906488334"
+    },
+    "state": "USER_STATE_ACTIVE",
+    "username": "quickstart-api",
+    "preferredLoginName": "quickstart-api@my-domain.zitadel.cloud",
+    "type": {
+      "machine": {}
+    }
+  }
+}
+```
+
+<Check>
+  **Success!** You've made your first API call to ZITADEL.
+</Check>
+
+## Step 5: Try More API Calls
+
+### List All Users
+
+Search for users in your instance:
+
+```bash
+curl -X POST "https://${ZITADEL_DOMAIN}/v2/users" \
+  -H "Authorization: Bearer ${ZITADEL_PAT}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "pagination": {
+      "limit": 10,
+      "asc": true
+    },
+    "sorting_column": "USER_FIELD_NAME_CREATION_DATE"
+  }'
+```
+
+### Create a New Organization
+
+```bash
+curl -X POST "https://${ZITADEL_DOMAIN}/v2/organizations" \
+  -H "Authorization: Bearer ${ZITADEL_PAT}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My New Organization"
+  }'
+```
+
+**Response**:
+
+```json
+{
+  "organization_id": "269629023906488334",
+  "creation_date": "2024-03-03T10:30:00.456Z",
+  "details": {
+    "sequence": "1",
+    "creationDate": "2024-03-03T10:30:00.456Z",
+    "changeDate": "2024-03-03T10:30:00.456Z",
+    "resourceOwner": "269629023906488334"
+  }
+}
+```
+
+### Get Organization by ID
+
+Using the `organization_id` from the creation response:
+
+```bash
+curl -X GET "https://${ZITADEL_DOMAIN}/v2/organizations/269629023906488334" \
+  -H "Authorization: Bearer ${ZITADEL_PAT}" \
+  -H "Content-Type: application/json"
+```
+
+## Understanding the Response
+
+ZITADEL API responses follow consistent patterns:
+
+### Resource Object
+
+Most responses include a resource object with:
+- **Resource data**: The main entity (user, organization, etc.)
+- **Details**: Metadata including `sequence`, `creationDate`, `changeDate`, and `resourceOwner`
+- **State**: Current state of the resource (e.g., `USER_STATE_ACTIVE`)
+
+### Details Object
+
+```json
+{
+  "details": {
+    "sequence": "2",
+    "creationDate": "2024-03-03T10:15:30.123Z",
+    "changeDate": "2024-03-03T10:15:30.123Z",
+    "resourceOwner": "169629012906488334"
+  }
+}
+```
+
+- **sequence**: Version number for optimistic locking
+- **creationDate**: When the resource was created
+- **changeDate**: When the resource was last modified
+- **resourceOwner**: The organization ID that owns the resource
+
+## Error Handling
+
+If something goes wrong, ZITADEL returns structured errors:
+
+```bash
+# Example: Invalid token
+curl -X GET "https://${ZITADEL_DOMAIN}/v2/users/${USER_ID}" \
+  -H "Authorization: Bearer invalid_token" \
+  -H "Content-Type: application/json"
+```
+
+**Error Response**:
+
+```json
+{
+  "code": "unauthenticated",
+  "message": "auth token could not be verified",
+  "details": []
+}
+```
+
+Common HTTP status codes:
+- **200**: Success
+- **400**: Bad request (invalid input)
+- **401**: Unauthenticated (invalid or missing token)
+- **403**: Forbidden (insufficient permissions)
+- **404**: Not found (resource doesn't exist)
+- **409**: Conflict (resource already exists)
+
+## Using Different Tools
+
+### HTTPie
+
+```bash
+http GET "https://${ZITADEL_DOMAIN}/v2/users/${USER_ID}" \
+  "Authorization: Bearer ${ZITADEL_PAT}"
+```
+
+### Python
+
+```python
+import requests
+import os
+
+domain = os.getenv('ZITADEL_DOMAIN')
+pat = os.getenv('ZITADEL_PAT')
+user_id = os.getenv('USER_ID')
+
+response = requests.get(
+    f'https://{domain}/v2/users/{user_id}',
+    headers={'Authorization': f'Bearer {pat}'}
+)
+
+print(response.json())
+```
+
+### JavaScript/Node.js
+
+```javascript
+const fetch = require('node-fetch');
+
+const domain = process.env.ZITADEL_DOMAIN;
+const pat = process.env.ZITADEL_PAT;
+const userId = process.env.USER_ID;
+
+fetch(`https://${domain}/v2/users/${userId}`, {
+  headers: {
+    'Authorization': `Bearer ${pat}`
+  }
+})
+.then(res => res.json())
+.then(data => console.log(data));
+```
+
+### Go
+
+```go
+package main
+
+import (
+    "fmt"
+    "io"
+    "net/http"
+    "os"
+)
+
+func main() {
+    domain := os.Getenv("ZITADEL_DOMAIN")
+    pat := os.Getenv("ZITADEL_PAT")
+    userID := os.Getenv("USER_ID")
+
+    url := fmt.Sprintf("https://%s/v2/users/%s", domain, userID)
+    req, _ := http.NewRequest("GET", url, nil)
+    req.Header.Add("Authorization", "Bearer "+pat)
+
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    if err != nil {
+        panic(err)
+    }
+    defer resp.Body.Close()
+
+    body, _ := io.ReadAll(resp.Body)
+    fmt.Println(string(body))
+}
+```
+
+## Next Steps
+
+Now that you've made your first API calls, explore more:
+
+<CardGroup cols={2}>
+  <Card title="API Overview" icon="book" href="/api/overview">
+    Learn about API design principles and available services
+  </Card>
+  <Card title="Authentication" icon="key" href="/api/authentication">
+    Implement production-ready JWT Profile authentication
+  </Card>
+  <Card title="User Service API" icon="users" href="/api-reference/user/introduction">
+    Explore the full User Service API reference
+  </Card>
+  <Card title="SDKs and Tools" icon="code" href="/sdks">
+    Use official SDKs for easier integration
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+### Token not working?
+
+- Verify the token was copied correctly (no extra spaces)
+- Check the token hasn't expired
+- Ensure you're using the correct ZITADEL domain
+
+### Permission denied?
+
+- Verify your service account has the necessary roles
+- Check that you're accessing resources in the correct organization
+- Ensure the scope includes `urn:zitadel:iam:org:project:id:zitadel:aud`
+
+### Rate limiting
+
+ZITADEL may rate-limit requests. If you receive a `429 Too Many Requests` response, implement exponential backoff.
+
+## Clean Up
+
+To remove the resources created in this quickstart:
+
+1. Delete the Personal Access Token:
+   - Navigate to your service account
+   - Go to **Personal Access Tokens**
+   - Delete the token you created
+
+2. (Optional) Delete the service account:
+   - Navigate to **Users** → **Service Accounts**
+   - Select the service account
+   - Click **Delete**
+
+3. (Optional) Delete the test organization if you created one

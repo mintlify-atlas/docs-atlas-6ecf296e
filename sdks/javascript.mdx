@@ -1,0 +1,181 @@
+---
+title: JavaScript SDK
+description: Integrate ZITADEL into JavaScript and TypeScript applications using the official JavaScript client library.
+---
+
+# JavaScript SDK
+
+The ZITADEL JavaScript SDK (`@zitadel/client`) provides a modern, type-safe interface for interacting with ZITADEL's APIs from Node.js and browser environments.
+
+<Callout type="info">
+**Management API Client**
+
+This library is designed for server-to-server communication to manage your ZITADEL instance (e.g., creating users, managing projects). For end-user authentication in web applications, use a standard OIDC library with your framework of choice.
+</Callout>
+
+## Installation
+
+The package is published on GitHub Packages. Configure your npm registry by creating or updating `.npmrc` in your project root:
+
+```ini
+@zitadel:registry=https://npm.pkg.github.com
+```
+
+Then install the package:
+
+<CodeGroup>
+```bash npm
+npm install @zitadel/client
+```
+
+```bash pnpm
+pnpm add @zitadel/client
+```
+
+```bash yarn
+yarn add @zitadel/client
+```
+</CodeGroup>
+
+## Basic Usage
+
+### Node.js Server-Side
+
+For server-side usage with service accounts:
+
+```typescript
+import { createUserServiceClient, makeReqCtx } from "@zitadel/client/v2";
+import { createServerTransport } from "@zitadel/client/node";
+
+// Create transport with service user token
+const transport = createServerTransport(
+  process.env.ZITADEL_SERVICE_USER_TOKEN!,
+  { baseUrl: process.env.ZITADEL_API_URL! }
+);
+
+// Create service client
+const userService = createUserServiceClient(transport);
+
+// Call API with organization context
+const response = await userService.getUser(
+  { ctx: makeReqCtx("orgId"), userId: "123456" },
+  {}
+);
+```
+
+### Create a User
+
+```typescript
+import { createUserServiceClient, makeReqCtx } from "@zitadel/client/v2";
+import { createServerTransport } from "@zitadel/client/node";
+
+const transport = createServerTransport(
+  process.env.ZITADEL_SERVICE_USER_TOKEN!,
+  { baseUrl: process.env.ZITADEL_API_URL! }
+);
+
+const userService = createUserServiceClient(transport);
+
+try {
+  const newUser = await userService.addHumanUser({
+    ctx: makeReqCtx("your-org-id"),
+    username: "alice@example.com",
+    profile: {
+      givenName: "Alice",
+      familyName: "Smith",
+      displayName: "Alice Smith"
+    },
+    email: {
+      email: "alice@example.com",
+      isVerified: false
+    }
+  });
+  
+  console.log("User created:", newUser.userId);
+} catch (error) {
+  console.error("Failed to create user:", error);
+}
+```
+
+### Get User Information
+
+```typescript
+const user = await userService.getUser(
+  {
+    ctx: makeReqCtx("your-org-id"),
+    userId: "123456789"
+  },
+  {}
+);
+
+if (user.user?.humanUser) {
+  console.log("Name:", user.user.humanUser.profile?.displayName);
+  console.log("Email:", user.user.humanUser.email?.email);
+}
+```
+
+## Authentication Methods
+
+### Service Account with Personal Access Token
+
+For server-side operations, use a service account token:
+
+```typescript
+const transport = createServerTransport(
+  process.env.ZITADEL_SERVICE_USER_TOKEN!,
+  { baseUrl: "https://your-instance.zitadel.cloud" }
+);
+```
+
+To create a personal access token:
+
+1. Create a service account in ZITADEL Console
+2. Navigate to the service account details
+3. Generate a Personal Access Token (PAT)
+4. Store the token securely in your environment variables
+
+### Using Organization Context
+
+Many API calls require an organization context. Use `makeReqCtx` to specify the organization:
+
+```typescript
+import { makeReqCtx } from "@zitadel/client/v2";
+
+const response = await service.someMethod(
+  { ctx: makeReqCtx("your-org-id"), ...otherParams },
+  {}
+);
+```
+
+## Available Services
+
+The SDK provides typed clients for all ZITADEL v2 services:
+
+- **UserService**: User management operations
+- **SessionService**: Session management
+- **SettingsService**: Organization and instance settings
+- **OrganizationService**: Organization management
+- **ProjectService**: Project and application management
+
+## Utilities
+
+The SDK includes helpful utilities:
+
+```typescript
+import { timestampMs } from "@zitadel/client";
+
+// Convert protobuf timestamp to milliseconds
+const createdAt = timestampMs(user.creationDate);
+console.log(new Date(createdAt));
+```
+
+## TypeScript Support
+
+The SDK is built with TypeScript and provides full type definitions for all API calls, request/response types, and utilities.
+
+## Next Steps
+
+- [View API Reference](/api/overview)
+- [Learn about service accounts](/authentication/social-login)
+- [Explore JavaScript examples](/examples/nodejs)
+- [Visit the GitHub repository](https://github.com/zitadel/zitadel)

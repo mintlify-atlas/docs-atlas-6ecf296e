@@ -1,0 +1,504 @@
+---
+title: Social Login and Enterprise IdPs
+description: Configure social login and enterprise identity providers in ZITADEL to allow users to authenticate with Google, GitHub, Microsoft, and other external providers.
+---
+
+ZITADEL supports identity federation through social login providers and enterprise identity providers (IdPs). Users can authenticate using their existing accounts from Google, GitHub, Microsoft, and many other providers instead of creating new credentials.
+
+## Supported Identity Providers
+
+ZITADEL provides built-in templates for popular identity providers:
+
+### Social Providers
+
+**Google**: OAuth 2.0 / OpenID Connect
+
+**GitHub**: OAuth 2.0
+
+**GitLab**: OAuth 2.0
+
+**Apple**: OAuth 2.0 / OpenID Connect with Sign in with Apple
+
+### Enterprise Providers
+
+**Azure AD / Microsoft Entra ID**: OpenID Connect
+
+**Generic OIDC**: Any OpenID Connect-compliant provider
+
+**Generic OAuth 2.0**: Any OAuth 2.0 provider
+
+**SAML 2.0**: Enterprise SAML identity providers
+
+**JWT**: Token-based authentication with JWT providers
+
+**LDAP**: Lightweight Directory Access Protocol providers
+
+## How Identity Federation Works
+
+Identity federation follows the OAuth 2.0 / OpenID Connect protocols:
+
+<Steps>
+
+<Step title="User Initiates Login">
+User clicks on a social login button (e.g., "Sign in with Google") in the ZITADEL Login UI
+</Step>
+
+<Step title="Redirect to Provider">
+ZITADEL redirects the user to the external identity provider's authentication page
+</Step>
+
+<Step title="User Authenticates">
+User authenticates with the external provider using their existing credentials
+</Step>
+
+<Step title="Authorization Grant">
+Provider redirects back to ZITADEL with an authorization code or tokens
+</Step>
+
+<Step title="Token Exchange">
+ZITADEL exchanges the authorization code for access and ID tokens
+</Step>
+
+<Step title="User Information">
+ZITADEL retrieves user profile information from the provider
+</Step>
+
+<Step title="Account Linking">
+ZITADEL links the external identity to a local user account (or creates a new one)
+</Step>
+
+<Step title="Session Creation">
+ZITADEL creates an authenticated session and returns to the application
+</Step>
+
+</Steps>
+
+## Configuring Identity Providers
+
+### Prerequisites
+
+Before adding an identity provider to ZITADEL:
+
+1. Enable external IdP support in your Login Policy
+2. Register your application with the external provider
+3. Obtain client credentials (Client ID and Client Secret)
+4. Configure redirect URIs at the provider
+
+### Enable External IdP in Login Policy
+
+<Steps>
+
+<Step title="Navigate to Login Policy">
+Go to Instance/Organization Settings > Login Policy
+</Step>
+
+<Step title="Allow External IdP">
+Enable **Allow External IdP** option
+</Step>
+
+<Step title="Save Configuration">
+Save the settings to enable social login support
+</Step>
+
+</Steps>
+
+Or via API:
+
+```bash
+curl -X PUT https://$ZITADEL_DOMAIN/v2/settings/login_policy \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "allowExternalIdp": true
+  }'
+```
+
+## Adding Identity Providers
+
+### Google
+
+<Steps>
+
+<Step title="Create Google OAuth App">
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select existing
+3. Navigate to APIs & Services > Credentials
+4. Create OAuth 2.0 Client ID (Web application)
+5. Add authorized redirect URI: `https://your-domain.zitadel.cloud/ui/login/login/externalidp/callback`
+6. Note the Client ID and Client Secret
+</Step>
+
+<Step title="Add Provider in ZITADEL">
+1. Navigate to Instance/Organization Settings > Identity Providers
+2. Click **Add Provider**
+3. Select **Google** template
+4. Enter Client ID and Client Secret
+5. Configure scopes (default: `openid profile email`)
+6. Save the configuration
+</Step>
+
+<Step title="Add to Login Policy">
+1. Go to Login Policy > Identity Providers
+2. Add the Google provider
+3. Save changes
+</Step>
+
+</Steps>
+
+### GitHub
+
+<Steps>
+
+<Step title="Create GitHub OAuth App">
+1. Go to GitHub Settings > Developer settings > OAuth Apps
+2. Click **New OAuth App**
+3. Set Authorization callback URL: `https://your-domain.zitadel.cloud/ui/login/login/externalidp/callback`
+4. Note the Client ID and Client Secret
+</Step>
+
+<Step title="Add Provider in ZITADEL">
+1. Navigate to Identity Providers
+2. Select **GitHub** template
+3. Enter Client ID and Client Secret
+4. Configure scopes (default: `user:email`)
+5. Save configuration
+</Step>
+
+</Steps>
+
+#### GitHub Provider Implementation
+
+```go
+// From internal/idp/providers/github/github.go
+const (
+    authURL        = "https://github.com/login/oauth/authorize"
+    tokenURL       = "https://github.com/login/oauth/access_token"
+    profileURL     = "https://api.github.com/user"
+)
+
+func New(clientID, secret, callbackURL string, scopes []string, options ...oauth.ProviderOpts) (*Provider, error) {
+    return NewCustomURL(name, clientID, secret, callbackURL, authURL, tokenURL, profileURL, scopes, options...)
+}
+```
+
+### Azure AD / Microsoft Entra ID
+
+<Steps>
+
+<Step title="Register App in Azure">
+1. Go to [Azure Portal](https://portal.azure.com/)
+2. Navigate to Azure Active Directory > App registrations
+3. Click **New registration**
+4. Set Redirect URI: `https://your-domain.zitadel.cloud/ui/login/login/externalidp/callback`
+5. Create a client secret in Certificates & secrets
+6. Note Application (client) ID and Directory (tenant) ID
+</Step>
+
+<Step title="Configure in ZITADEL">
+1. Add new Identity Provider
+2. Select **Azure AD** template
+3. Enter:
+   - Client ID (Application ID)
+   - Client Secret
+   - Tenant ID (or use `common` for multi-tenant)
+4. Configure scopes: `openid profile email`
+5. Save configuration
+</Step>
+
+</Steps>
+
+### Generic OIDC Provider
+
+For any OpenID Connect-compliant provider:
+
+```bash
+curl -X POST https://$ZITADEL_DOMAIN/admin/v1/idps/oidc \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Custom OIDC Provider",
+    "issuer": "https://provider.example.com",
+    "clientId": "your-client-id",
+    "clientSecret": "your-client-secret",
+    "scopes": ["openid", "profile", "email"],
+    "isLinkingAllowed": true,
+    "isCreationAllowed": true,
+    "isAutoCreation": false,
+    "isAutoUpdate": true
+  }'
+```
+
+## Identity Provider Options
+
+When configuring identity providers, you can control user account behavior:
+
+### Linking Options
+
+**IsLinkingAllowed**: Allow users to manually link external identity to existing ZITADEL account
+
+**IsCreationAllowed**: Allow users to create new ZITADEL account using external identity
+
+**IsAutoCreation**: Automatically create ZITADEL account on first login (no manual confirmation)
+
+**IsAutoUpdate**: Automatically update user profile from external provider on each login
+
+```go
+// From internal/idp/providers implementation
+type ProviderOpts func(provider *Provider)
+
+func WithLinkingAllowed() ProviderOpts {
+    return func(p *Provider) {
+        p.isLinkingAllowed = true
+    }
+}
+
+func WithCreationAllowed() ProviderOpts {
+    return func(p *Provider) {
+        p.isCreationAllowed = true
+    }
+}
+
+func WithAutoCreation() ProviderOpts {
+    return func(p *Provider) {
+        p.isAutoCreation = true
+    }
+}
+
+func WithAutoUpdate() ProviderOpts {
+    return func(p *Provider) {
+        p.isAutoUpdate = true
+    }
+}
+```
+
+### Recommended Settings
+
+**B2C Applications** (consumer apps):
+- `isLinkingAllowed`: true
+- `isCreationAllowed`: true
+- `isAutoCreation`: true
+- `isAutoUpdate`: true
+
+**B2B Applications** (enterprise apps):
+- `isLinkingAllowed`: true
+- `isCreationAllowed`: false (pre-provision users)
+- `isAutoCreation`: false
+- `isAutoUpdate`: true
+
+## Attribute Mapping
+
+ZITADEL maps attributes from external providers to local user profiles:
+
+### Standard Mappings
+
+**Google**:
+- ID → External User ID
+- Email → Email (verified)
+- Given Name → First Name
+- Family Name → Last Name
+- Picture → Avatar URL
+
+**GitHub**:
+- ID → External User ID
+- Login → Preferred Username
+- Email → Email (verified)
+- Name → Display Name
+- Avatar URL → Avatar URL
+
+**Azure AD**:
+- OID → External User ID
+- Email → Email
+- Given Name → First Name
+- Surname → Last Name
+- Picture → Avatar URL
+
+### Custom Attribute Mapping
+
+For generic OIDC/OAuth providers, you can configure custom attribute mappings to extract specific claims from the provider's ID token or user info endpoint.
+
+## Identity Brokering
+
+ZITADEL acts as an identity broker, allowing you to:
+
+1. Aggregate multiple identity providers
+2. Provide consistent authentication experience
+3. Centralize user management
+4. Apply organization-specific policies
+5. Maintain audit trail across providers
+
+Learn more in the [Identity Brokering documentation](/concepts/features/identity-brokering).
+
+## Domain Discovery
+
+Automate organization and IdP selection based on user's email domain:
+
+<Steps>
+
+<Step title="Enable Domain Discovery">
+Enable in Login Policy: `allowDomainDiscovery: true`
+</Step>
+
+<Step title="Configure Organization Domains">
+Add verified domains to organizations
+</Step>
+
+<Step title="Map IdPs to Organizations">
+Configure which IdPs are available per organization
+</Step>
+
+<Step title="User Experience">
+User enters email → ZITADEL detects organization → Shows appropriate IdP options
+</Step>
+
+</Steps>
+
+See [Domain Discovery guide](/guides/solution-scenarios/domain-discovery) for details.
+
+## MFA with External IdPs
+
+Control MFA requirements for federated users:
+
+### Force MFA for Local Only
+
+Require MFA only for local accounts, not federated users:
+
+```bash
+curl -X PUT https://$ZITADEL_DOMAIN/v2/settings/login_policy \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "forceMfa": true,
+    "forceMfaLocalOnly": true
+  }'
+```
+
+With `forceMfaLocalOnly: true`, users authenticating via external IdPs bypass ZITADEL's MFA requirement (assuming the external provider handles MFA).
+
+## Testing Identity Providers
+
+### Redirect URI
+
+Ensure your redirect URI matches exactly:
+
+```
+https://{your-zitadel-domain}/ui/login/login/externalidp/callback
+```
+
+### Test Flow
+
+1. Open incognito/private browser window
+2. Navigate to your application's login page
+3. Click the social login button
+4. Verify redirect to external provider
+5. Authenticate with test credentials
+6. Verify successful redirect back to ZITADEL
+7. Check user creation/linking in ZITADEL Console
+
+### Common Issues
+
+**Redirect URI mismatch**: Verify exact match including protocol (https) and trailing slash
+
+**Invalid client credentials**: Double-check Client ID and Client Secret
+
+**Scope errors**: Ensure requested scopes are enabled at the provider
+
+**CORS issues**: For custom providers, verify CORS configuration
+
+## Security Considerations
+
+<Warning>
+**Client Secret Protection**: Store client secrets securely. Never expose them in client-side code or version control.
+</Warning>
+
+<Note>
+**Email Verification**: External provider email claims are trusted as verified. Ensure you trust the provider's verification process.
+</Note>
+
+<Note>
+**Account Takeover Prevention**: Carefully configure linking options to prevent unauthorized account linking.
+</Note>
+
+### Best Practices
+
+1. **Use HTTPS**: Always use HTTPS for redirect URIs in production
+2. **Verify State Parameter**: ZITADEL automatically includes state parameter for CSRF protection
+3. **Limit Scopes**: Request only necessary scopes from external providers
+4. **Monitor Account Linking**: Track which accounts link external identities
+5. **Update Regularly**: Keep provider configurations up to date
+
+## API Reference
+
+Key IdP-related API endpoints:
+
+### Add OIDC IdP
+
+```
+POST /admin/v1/idps/oidc
+```
+
+### Add OAuth IdP
+
+```
+POST /admin/v1/idps/oauth
+```
+
+### Add SAML IdP
+
+```
+POST /admin/v1/idps/saml
+```
+
+### List IdPs
+
+```
+GET /admin/v1/idps/_search
+```
+
+### Add IdP to Login Policy
+
+```
+POST /admin/v1/policies/login/idps
+```
+
+See the [Admin Service API](/apis/resources/admin) for complete documentation.
+
+## Multi-Tenancy Considerations
+
+In multi-tenant deployments:
+
+- Configure IdPs at **Instance** level for global availability
+- Configure IdPs at **Organization** level for tenant-specific providers
+- Organization-level IdPs override instance-level settings
+- Each organization can have different available IdPs
+
+## Migration from Other IAM Systems
+
+When migrating from other IAM systems:
+
+<Steps>
+
+<Step title="Map External IDs">
+Preserve external identity provider links during migration
+</Step>
+
+<Step title="Configure Matching IdPs">
+Set up the same external providers in ZITADEL
+</Step>
+
+<Step title="Test Thoroughly">
+Verify authentication flow with test users before migration
+</Step>
+
+<Step title="Update Redirect URIs">
+Update all redirect URIs at external providers to point to ZITADEL
+</Step>
+
+</Steps>
+
+## Related Documentation
+
+- [Identity Provider Introduction](/guides/integrate/identity-providers/introduction)
+- [Identity Brokering](/concepts/features/identity-brokering)
+- [Domain Discovery](/guides/solution-scenarios/domain-discovery)
+- [LDAP Integration](/authentication/ldap)
+- [B2B Onboarding](/guides/integrate/onboarding/b2b)

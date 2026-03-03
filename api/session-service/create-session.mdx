@@ -1,0 +1,186 @@
+---
+title: Create Session
+description: Create a new session with initial verification checks
+---
+
+Creates a new session with initial checks, metadata, and challenges for further verification. Returns a session token that can be used for authentication.
+
+## HTTP Request
+
+```
+POST /v2/sessions
+```
+
+## Request Body
+
+<ParamField path="checks" type="object">
+  The checks to be performed during session creation. On successful checks, the session's factors will be updated.
+  
+  <ParamField path="user" type="object">
+    Check the user by ID or login name. A user check can only be performed once per session.
+    
+    <ParamField path="user_id" type="string">
+      The unique identifier of the user to check (1-200 characters).
+    </ParamField>
+    
+    <ParamField path="login_name" type="string">
+      The login name of the user to check (1-200 characters). Search is case insensitive.
+    </ParamField>
+  </ParamField>
+  
+  <ParamField path="password" type="object">
+    Check the password. Requires that the user is already checked.
+    
+    <ParamField path="password" type="string" required>
+      The password to verify (1-200 characters).
+    </ParamField>
+  </ParamField>
+  
+  <ParamField path="web_auth_n" type="object">
+    Check WebAuthN credential. Requires user check and a previously requested challenge.
+    
+    <ParamField path="credential_assertion_data" type="object" required>
+      JSON representation of the public key credential from the WebAuthN client.
+    </ParamField>
+  </ParamField>
+  
+  <ParamField path="totp" type="object">
+    Check TOTP code. Requires that the user is already checked.
+    
+    <ParamField path="code" type="string" required>
+      The 6-digit TOTP code.
+    </ParamField>
+  </ParamField>
+  
+  <ParamField path="otp_sms" type="object">
+    Check OTP sent via SMS. Requires that the user is already checked.
+    
+    <ParamField path="code" type="string" required>
+      The OTP code received via SMS.
+    </ParamField>
+  </ParamField>
+  
+  <ParamField path="otp_email" type="object">
+    Check OTP sent via email. Requires that the user is already checked.
+    
+    <ParamField path="code" type="string" required>
+      The OTP code received via email.
+    </ParamField>
+  </ParamField>
+</ParamField>
+
+<ParamField path="metadata" type="object">
+  Custom key-value pairs to store on the session. Values are stored as bytes.
+</ParamField>
+
+<ParamField path="challenges" type="object">
+  Challenges to request for further verification. The challenges will be returned in the response.
+</ParamField>
+
+<ParamField path="user_agent" type="object">
+  Information about the client creating the session.
+  
+  <ParamField path="fingerprint_id" type="string">
+    Unique identifier for the user agent's fingerprint.
+  </ParamField>
+  
+  <ParamField path="ip" type="string">
+    IP address from which the session is created.
+  </ParamField>
+  
+  <ParamField path="description" type="string">
+    Human-readable description of the user agent.
+  </ParamField>
+  
+  <ParamField path="header" type="object">
+    HTTP headers from the client request.
+  </ParamField>
+</ParamField>
+
+<ParamField path="lifetime" type="string">
+  Duration after which the session will be automatically invalidated (e.g., "18000s" for 5 hours). If not set, the session will not expire automatically.
+</ParamField>
+
+## Response
+
+<ResponseField name="details" type="object">
+  Metadata about the operation.
+  
+  <ResponseField name="sequence" type="string">
+    The sequence number of this change.
+  </ResponseField>
+  
+  <ResponseField name="change_date" type="timestamp">
+    When the session was created.
+  </ResponseField>
+  
+  <ResponseField name="resource_owner" type="string">
+    The resource owner of the session.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="session_id" type="string">
+  Unique identifier of the newly created session.
+</ResponseField>
+
+<ResponseField name="session_token" type="string">
+  The session token to use for authentication. This can be used as an OAuth2 access token or to authenticate OIDC/SAML requests.
+</ResponseField>
+
+<ResponseField name="challenges" type="object">
+  The challenges that were requested for the session, ready for use in subsequent checks.
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X POST 'https://api.zitadel.cloud/v2/sessions' \
+  -H 'Authorization: Bearer <TOKEN>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "checks": {
+      "user": {
+        "login_name": "user@example.com"
+      },
+      "password": {
+        "password": "MySecurePassword123!"
+      }
+    },
+    "user_agent": {
+      "ip": "192.168.1.100",
+      "description": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    },
+    "lifetime": "28800s"
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "details": {
+    "sequence": "2",
+    "change_date": "2024-03-15T10:30:00.000Z",
+    "resource_owner": "69629023906488334"
+  },
+  "session_id": "222430354126975533",
+  "session_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IjIy...",
+  "challenges": {}
+}
+```
+
+## Error Responses
+
+| Status Code | Description |
+|-------------|-------------|
+| 400 | Invalid request body or failed verification |
+| 401 | Unauthorized - missing or invalid authentication |
+| 403 | Forbidden - insufficient permissions |
+
+## Notes
+
+- A user check can only be performed once per session and cannot be changed afterwards
+- Some checks require the user to be verified first (password, TOTP, OTP)
+- Other checks require a previously requested challenge (WebAuthN, IDP intent)
+- The session token should be kept secure and treated like an access token
+- Previous session tokens are invalidated when the session is updated

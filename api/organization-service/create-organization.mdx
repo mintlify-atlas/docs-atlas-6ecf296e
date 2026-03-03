@@ -1,0 +1,139 @@
+---
+title: Create Organization
+description: Create a new organization with administrative users
+---
+
+## Endpoint
+
+```
+POST /v2/organizations
+```
+
+## Description
+
+Create a new organization with an administrative user. If no specific roles are sent for the users, they will be granted the role ORG_OWNER.
+
+## Required Permission
+
+- `org.create`
+
+## Request Body
+
+<ParamField body="name" type="string" required>
+  Name is the unique name of the organization to be created. This must be unique across the instance.
+  
+  **Min Length:** 1  
+  **Max Length:** 200
+</ParamField>
+
+<ParamField body="admins" type="array">
+  Specify users to be assigned as organization admins. If no users are specified, the organization will be created without any admin users.
+  
+  <ParamField body="userId" type="string">
+    Existing user ID to make an admin.
+  </ParamField>
+  
+  <ParamField body="human" type="object">
+    Create a new human user as admin.
+    
+    <ParamField body="profile" type="object" required>
+      Profile information.
+    </ParamField>
+    
+    <ParamField body="email" type="object" required>
+      Email information.
+    </ParamField>
+  </ParamField>
+  
+  <ParamField body="roles" type="array">
+    Org member roles for the admin (default is ORG_OWNER if empty).
+  </ParamField>
+</ParamField>
+
+<ParamField body="organizationId" type="string">
+  Optional unique identifier for the organization. If omitted, the system will generate one, which is the recommended way.
+  
+  **Max Length:** 200
+</ParamField>
+
+## Response
+
+<ResponseField name="details" type="object">
+  Metadata about the creation.
+  
+  <ResponseField name="sequence" type="string">
+    Sequence number.
+  </ResponseField>
+  
+  <ResponseField name="changeDate" type="timestamp">
+    Creation timestamp.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="organizationId" type="string">
+  The unique identifier of the newly created organization.
+</ResponseField>
+
+<ResponseField name="createdAdmins" type="array">
+  Information about created admin users.
+  
+  <ResponseField name="userId" type="string">
+    User ID of the created admin.
+  </ResponseField>
+  
+  <ResponseField name="emailCode" type="string">
+    Email verification code if applicable.
+  </ResponseField>
+  
+  <ResponseField name="phoneCode" type="string">
+    Phone verification code if applicable.
+  </ResponseField>
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X POST https://your-domain.zitadel.cloud/v2/organizations \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "ACME Corporation",
+    "admins": [
+      {
+        "human": {
+          "profile": {
+            "givenName": "John",
+            "familyName": "Doe"
+          },
+          "email": {
+            "email": "john.doe@acme.com"
+          }
+        },
+        "roles": ["ORG_OWNER"]
+      }
+    ]
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "details": {
+    "sequence": "1",
+    "changeDate": "2024-03-15T10:00:00Z"
+  },
+  "organizationId": "69629026806489455",
+  "createdAdmins": [
+    {
+      "userId": "d654e6ba-70a3-48ef-a95d-37c8d8a7901a"
+    }
+  ]
+}
+```
+
+## Error Responses
+
+- `400 Bad Request` - Invalid organization data
+- `403 Forbidden` - Insufficient permissions
+- `409 Conflict` - Organization name already exists

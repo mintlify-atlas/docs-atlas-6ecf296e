@@ -1,0 +1,404 @@
+---
+title: Passkeys
+description: Learn how to implement passwordless authentication with Passkeys (FIDO2/WebAuthn) in ZITADEL for a more secure and user-friendly login experience.
+---
+
+Passkeys provide a passwordless, phishing-resistant authentication method using FIDO2/WebAuthn standards. ZITADEL has native support for passkeys, allowing users to authenticate with biometrics, security keys, or device authentication.
+
+## What are Passkeys?
+
+Passkeys are a modern authentication method that replaces passwords with cryptographic key pairs:
+
+- **Private key**: Stored securely on the user's device (never leaves the device)
+- **Public key**: Stored on ZITADEL's servers
+
+When authenticating, the device proves possession of the private key through cryptographic challenge-response, eliminating the need to transmit secrets over the network.
+
+### Benefits
+
+**Phishing-Resistant**: Passkeys are bound to specific domains and cannot be used on phishing sites
+
+**No Password Management**: Users don't need to remember or manage passwords
+
+**Biometric Authentication**: Use fingerprint, Face ID, or other device biometrics
+
+**Cross-Platform**: Passkeys sync across devices via platform providers (Apple, Google, Microsoft)
+
+**WebAuthn Standard**: Based on open standards supported by all major browsers
+
+## Passkey Types
+
+ZITADEL supports different passkey configurations:
+
+### Platform Authenticators
+
+Built into the user's device:
+- Touch ID / Face ID on Apple devices
+- Windows Hello on Windows
+- Fingerprint sensors on Android devices
+
+### Cross-Platform Authenticators
+
+External security keys:
+- YubiKey
+- Google Titan Security Key
+- Other FIDO2-compliant hardware tokens
+
+### User Verification
+
+Passkeys can be configured to require user verification (biometric or PIN) or allow passwordless authentication without additional verification.
+
+## Enabling Passkeys
+
+Passkeys are enabled through the Login Policy settings.
+
+### Via Console
+
+<Steps>
+
+<Step title="Navigate to Login Policy">
+Go to Instance/Organization Settings > Login Policy
+</Step>
+
+<Step title="Enable Passwordless">
+Set **Passwordless Type** to "Allowed"
+</Step>
+
+<Step title="Save Settings">
+Save the configuration to enable passkey support
+</Step>
+
+</Steps>
+
+### Via API
+
+```bash
+curl -X PUT https://$ZITADEL_DOMAIN/v2/settings/login_policy \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "passwordlessType": "PASSWORDLESS_TYPE_ALLOWED"
+  }'
+```
+
+## Registering a Passkey
+
+Users can register passkeys through the ZITADEL Console or via API integration.
+
+### User Self-Service Registration
+
+<Steps>
+
+<Step title="Access Account Settings">
+Users log into the ZITADEL Console and navigate to their account settings
+</Step>
+
+<Step title="Add Passkey">
+Select **Security** > **Passkeys** > **Add Passkey**
+</Step>
+
+<Step title="Complete Registration">
+Follow the browser prompts to register the passkey with their device/security key
+</Step>
+
+<Step title="Name the Passkey">
+Provide a friendly name for the passkey (e.g., "MacBook Pro", "YubiKey")
+</Step>
+
+</Steps>
+
+### Programmatic Registration
+
+Applications can trigger passkey registration via the User API:
+
+```typescript
+import { registerPasskeyLink, verifyPasskeyRegistration } from '@/lib/server/passkeys';
+
+// Step 1: Generate registration options
+const registrationResponse = await registerPasskeyLink({
+  userId: user.id,
+  code: registrationCode.code,
+  codeId: registrationCode.id,
+});
+
+// Step 2: Present WebAuthn credential creation to user
+const credential = await navigator.credentials.create({
+  publicKey: registrationResponse.publicKeyCredentialCreationOptions,
+});
+
+// Step 3: Verify the registration
+const verification = await verifyPasskeyRegistration({
+  userId: user.id,
+  passkeyId: registrationResponse.passkeyId,
+  publicKeyCredential: credential,
+  passkeyName: "My Device",
+});
+```
+
+### Registration Flow Details
+
+The passkey registration process:
+
+1. **Generate Challenge**: ZITADEL creates a cryptographic challenge
+2. **User Gesture**: Browser prompts for user verification (biometric/PIN)
+3. **Key Generation**: Device generates a new key pair
+4. **Attestation**: Device sends public key and attestation to ZITADEL
+5. **Storage**: ZITADEL stores the public key and associates it with the user
+
+## Authenticating with Passkeys
+
+### Login Flow
+
+<Steps>
+
+<Step title="Initiate Login">
+User enters their username or email at the login screen
+</Step>
+
+<Step title="Passkey Prompt">
+If passkeys are registered, the browser presents authentication options
+</Step>
+
+<Step title="User Verification">
+User authenticates with biometric, device PIN, or security key
+</Step>
+
+<Step title="Authentication Complete">
+ZITADEL verifies the signature and grants access
+</Step>
+
+</Steps>
+
+### API-Based Authentication
+
+```typescript
+import { sendPasskey } from '@/lib/server/passkeys';
+
+// Step 1: Get authentication challenge
+const result = await sendPasskey({
+  loginName: user.email,
+  organization: orgId,
+  requestId: authRequestId,
+});
+
+// Step 2: Get credential from user's device
+const assertion = await navigator.credentials.get({
+  publicKey: result.publicKeyCredentialRequestOptions,
+});
+
+// Step 3: Complete authentication
+// The session is automatically updated with the passkey factor
+```
+
+## Passkey Configuration
+
+ZITADEL's passkey implementation can be customized through several configuration options.
+
+### WebAuthn Configuration
+
+The ZITADEL backend supports configuring:
+
+**RP ID (Relying Party ID)**: The domain for passkey scope
+
+**RP Name**: Display name shown during registration
+
+**Timeout**: How long users have to complete authentication
+
+**User Verification**: Required, preferred, or discouraged
+
+**Attestation**: Direct, indirect, or none
+
+### Attribute Mapping
+
+Passkeys in ZITADEL store:
+
+- **Passkey ID**: Unique identifier for the credential
+- **Passkey Name**: User-friendly name for the device
+- **Public Key**: The cryptographic public key
+- **Attestation Type**: Type of attestation provided during registration
+- **Sign Count**: Counter to detect cloned authenticators
+- **AAGUID**: Authenticator model identifier
+
+## Multi-Device Passkeys
+
+Modern passkey implementations support syncing across devices:
+
+### iCloud Keychain (Apple)
+
+Passkeys registered on one Apple device sync to all devices signed into the same iCloud account.
+
+### Google Password Manager
+
+Passkeys sync across Android devices and Chrome browsers signed into the same Google account.
+
+### Microsoft Account
+
+Passkeys sync across Windows devices using the same Microsoft account.
+
+<Note>
+**Cross-Platform Sync**: While passkeys can sync within an ecosystem (Apple, Google, Microsoft), they don't currently sync between different ecosystems. Users may need to register separate passkeys for each ecosystem.
+</Note>
+
+## Security Considerations
+
+### User Verification
+
+ZITADEL supports configuring user verification requirements:
+
+```go
+// From internal/idp/providers code
+// User verification can be:
+// - Required: Always require biometric/PIN
+// - Preferred: Use if available
+// - Discouraged: Don't require
+```
+
+For high-security applications, always require user verification.
+
+### Attestation
+
+Attestation validates the authenticator's authenticity:
+
+- **Direct**: Full attestation statement (most secure)
+- **Indirect**: Anonymized attestation
+- **None**: No attestation verification
+
+Choose attestation level based on your security requirements and privacy concerns.
+
+### Recovery Options
+
+<Warning>
+Always provide alternative authentication methods as backup:
+- Additional passkeys on different devices
+- Password authentication (if not disabled)
+- Recovery codes
+- Administrator account recovery
+</Warning>
+
+## Passkeys as MFA
+
+Passkeys can be used as a multi-factor authentication method alongside passwords:
+
+1. User authenticates with password (first factor)
+2. ZITADEL prompts for second factor
+3. User authenticates with passkey (second factor)
+
+This provides defense-in-depth while still leveraging passkey benefits.
+
+To configure passkeys as MFA, add `MFA_TYPE_PASSKEY` to the login policy's multi-factors list.
+
+## Migration from Passwords
+
+Strategy for transitioning users to passkeys:
+
+<Steps>
+
+<Step title="Enable Passkeys">
+Set passwordless type to "Allowed" in login policy
+</Step>
+
+<Step title="Encourage Registration">
+Prompt users to register passkeys during login or via email campaigns
+</Step>
+
+<Step title="Monitor Adoption">
+Track passkey registration rates and usage metrics
+</Step>
+
+<Step title="Optional: Disable Passwords">
+Once adoption is sufficient, consider making passkeys required and disabling password authentication
+</Step>
+
+</Steps>
+
+## Testing Passkeys
+
+### Local Development
+
+When testing passkeys locally:
+
+- Use `localhost` (passkeys work on localhost for development)
+- For mobile testing, use ngrok or similar tunneling to get HTTPS
+- Some authenticators only work over HTTPS
+
+### Browser Support
+
+Passkeys are supported in:
+
+- Chrome 67+
+- Safari 14+
+- Firefox 60+
+- Edge 18+
+
+### Testing Tools
+
+Use browser developer tools to:
+
+- Inspect WebAuthn API calls
+- View credential creation/request options
+- Debug registration/authentication flows
+
+## Troubleshooting
+
+### Passkey Registration Fails
+
+**Check user verification**: Ensure the user completed biometric/PIN verification
+
+**Verify HTTPS**: Passkeys require secure context (HTTPS or localhost)
+
+**Browser compatibility**: Confirm the browser supports WebAuthn
+
+**RP ID mismatch**: Ensure the RP ID matches your domain configuration
+
+### Authentication Not Working
+
+**Credential not found**: Verify the passkey is registered for the correct user and domain
+
+**Sign count mismatch**: May indicate a cloned authenticator (security feature)
+
+**User verification failed**: User cancelled or failed biometric verification
+
+## API Reference
+
+Key passkey-related API endpoints:
+
+### Register Passkey
+
+```
+POST /v2/users/{userId}/passkeys
+```
+
+Initiates passkey registration and returns WebAuthn options.
+
+### Verify Passkey Registration
+
+```
+POST /v2/users/{userId}/passkeys/{passkeyId}/verify
+```
+
+Completes passkey registration by verifying the credential.
+
+### List Passkeys
+
+```
+GET /v2/users/{userId}/passkeys
+```
+
+Returns all passkeys registered for a user.
+
+### Remove Passkey
+
+```
+DELETE /v2/users/{userId}/passkeys/{passkeyId}
+```
+
+Removes a passkey from the user's account.
+
+See the [User Service API](/apis/resources/user_service) for complete documentation.
+
+## Related Documentation
+
+- [Passkeys Concept Guide](/concepts/features/passkeys)
+- [Session API](/apis/resources/user_service/session-service)
+- [Login Policy Configuration](/guides/manage/console/default-settings)
+- [WebAuthn Specification](https://www.w3.org/TR/webauthn-2/)

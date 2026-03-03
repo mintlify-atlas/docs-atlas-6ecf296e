@@ -1,0 +1,102 @@
+---
+title: Create Project
+description: Create a new project in an organization
+---
+
+## Endpoint
+
+```
+POST /v2/projects
+```
+
+## Description
+
+Create a new project. A project is a vessel to group applications, roles, and authorizations. Every project belongs to exactly one organization, but can be granted to other organizations for self-management of their authorizations.
+
+## Required Permission
+
+- `project.create`
+
+## Request Body
+
+<ParamField body="organizationId" type="string" required>
+  The unique identifier of the organization the project belongs to.
+  
+  **Min Length:** 1  
+  **Max Length:** 200
+</ParamField>
+
+<ParamField body="projectId" type="string">
+  Optional unique identifier of the new project. If omitted, the system will generate a unique ID for you (recommended).
+  
+  **Min Length:** 1  
+  **Max Length:** 200
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Name of the project. This might be presented to users, e.g., in sign-in flows.
+  
+  **Min Length:** 1  
+  **Max Length:** 200
+</ParamField>
+
+<ParamField body="projectRoleAssertion" type="boolean">
+  Enable to include role information in the user info endpoint. Also dependent on application settings.
+</ParamField>
+
+<ParamField body="authorizationRequired" type="boolean">
+  Enable to check if a user has an authorization to use this project when logging into an application.
+</ParamField>
+
+<ParamField body="projectAccessRequired" type="boolean">
+  Enable to check if the organization of the user has access to this project (either owns or is granted).
+</ParamField>
+
+<ParamField body="privateLabelingSetting" type="string">
+  Setting that defines which private labeling/branding should trigger when getting to a login of this project.
+  
+  Options:
+  - `PRIVATE_LABELING_SETTING_UNSPECIFIED`
+  - `PRIVATE_LABELING_SETTING_ENFORCE_PROJECT_RESOURCE_OWNER_POLICY`
+  - `PRIVATE_LABELING_SETTING_ALLOW_LOGIN_USER_RESOURCE_OWNER_POLICY`
+</ParamField>
+
+## Response
+
+<ResponseField name="projectId" type="string">
+  The unique identifier of the newly created project.
+</ResponseField>
+
+<ResponseField name="creationDate" type="timestamp">
+  The timestamp of the project creation.
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X POST https://your-domain.zitadel.cloud/v2/projects \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "organizationId": "69629026806489455",
+    "name": "My Application Project",
+    "projectRoleAssertion": true,
+    "authorizationRequired": false,
+    "projectAccessRequired": true,
+    "privateLabelingSetting": "PRIVATE_LABELING_SETTING_ENFORCE_PROJECT_RESOURCE_OWNER_POLICY"
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "projectId": "69629012906488334",
+  "creationDate": "2024-12-18T07:50:47.492Z"
+}
+```
+
+## Error Responses
+
+- `400 Bad Request` - Invalid project data
+- `403 Forbidden` - Insufficient permissions

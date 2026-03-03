@@ -1,0 +1,72 @@
+---
+title: Project Service Overview
+description: Manage projects in your ZITADEL instance
+---
+
+## Overview
+
+The Project Service manages projects in ZITADEL. A project is a vessel to group applications, roles, and authorizations. Every project belongs to exactly one organization but can be granted to other organizations for self-management of their authorizations.
+
+## API Version
+
+This documentation covers **Project Service v2**.
+
+## Authentication
+
+All Project Service endpoints require authentication using OAuth2.
+
+## Base URL
+
+```
+https://$CUSTOM_DOMAIN/v2/projects
+```
+
+## Common Operations
+
+### Project Management
+
+- [Create Project](/api/project-service/create-project) - Create a new project
+- [Update Project](/api/project-service/update-project) - Update an existing project
+- [List Projects](/api/project-service/list-projects) - Search and list projects
+
+### Project Features
+
+- **Project Roles** - Define custom roles within a project
+- **Project Grants** - Grant projects to other organizations
+- **Authorization Checks** - Control access based on project membership
+- **Private Labeling** - Configure branding for project applications
+
+## Project Settings
+
+<ParamField body="projectRoleAssertion" type="boolean">
+  Include role information in the user info endpoint and tokens.
+</ParamField>
+
+<ParamField body="authorizationRequired" type="boolean">
+  Check if a user has authorization to use this project when logging in.
+</ParamField>
+
+<ParamField body="projectAccessRequired" type="boolean">
+  Check if the user's organization has access to this project (owns or is granted).
+</ParamField>
+
+## Required Permissions
+
+- `project.create` - Create new projects
+- `project.write` - Modify projects
+- `project.read` - Read project data
+- `project.delete` - Delete projects
+- `project.role.write` - Manage project roles
+- `project.role.read` - Read project roles
+- `project.grant.create` - Create project grants
+- `project.grant.write` - Modify project grants
+- `project.grant.read` - Read project grants
+- `project.grant.delete` - Delete project grants
+
+## Error Responses
+
+Common HTTP status codes:
+
+- `400` - Bad Request
+- `403` - Forbidden: Insufficient permissions
+- `404` - Not Found: Project does not exist

@@ -1,0 +1,113 @@
+---
+title: Action Service Overview
+description: API for managing custom executions and targets in ZITADEL
+---
+
+The Action Service API allows you to manage custom executions (previously known as actions) in a ZITADEL instance. Executions enable you to extend ZITADEL's functionality by calling external endpoints at specific points in the request lifecycle.
+
+## Base URL
+
+```
+https://$CUSTOM_DOMAIN/v2/actions
+```
+
+## Authentication
+
+All endpoints require authentication using OAuth2 with the following scopes:
+- `openid`
+- `urn:zitadel:iam:org:project:id:zitadel:aud`
+
+## Key Concepts
+
+### Targets
+
+A target defines an HTTP endpoint that ZITADEL will call. Each target includes:
+- **Name**: Human-readable identifier
+- **Endpoint URL**: The URL to call
+- **Target Type**: How the response is handled (webhook, call, or async)
+- **Timeout**: Maximum duration for the request
+- **Payload Type**: How the payload is formatted (JSON, JWT, or JWE)
+
+### Target Types
+
+- **REST Webhook**: POST request where only the status code is checked. Body is ignored.
+- **REST Call**: POST request where both status code and body are checked. Allows payload modification.
+- **REST Async**: Asynchronous POST request. Response is not waited for or checked.
+
+### Executions
+
+An execution defines when and which targets to call. Each execution includes:
+- **Condition**: When the execution should trigger (request, response, function, or event)
+- **Targets**: Ordered list of target IDs to call
+
+### Conditions
+
+Executions can be triggered by:
+- **Request**: Before a specific API method/service is processed
+- **Response**: Before a response is returned from a method/service
+- **Function**: When a specific function is called (replaces Actions v1)
+- **Event**: When specific events occur in the system
+
+### Payload Security
+
+Targets support three payload types:
+- **JSON** (default): Payload sent as JSON with `X-ZITADEL-Signature` header for verification
+- **JWT**: Payload sent as signed JSON Web Token
+- **JWE**: Payload sent as encrypted JWT using your public key
+
+## Available Operations
+
+### Target Management
+- [Create Target](/api/action-service/create-action) - Create a new target endpoint
+- [Update Target](/api/action-service/update-action) - Modify an existing target
+- [List Targets](/api/action-service/list-actions) - Search for targets
+
+### Execution Management
+- Set Execution - Configure when targets are called
+- List Executions - View configured executions
+
+## Common Use Cases
+
+### IP Allowlist
+
+Validate user IP addresses before allowing authentication:
+1. Create a target pointing to your IP validation service
+2. Set up an execution on the login request
+3. Your service receives the IP and returns allow/deny
+
+### Custom Claims
+
+Add custom claims to tokens:
+1. Create a target that returns additional user data
+2. Set up an execution on token response
+3. ZITADEL merges the returned claims into the token
+
+### Audit Logging
+
+Send events to external audit systems:
+1. Create an async target pointing to your audit service
+2. Set up executions on critical events (user.created, login.succeeded, etc.)
+3. Events are sent without blocking the main flow
+
+### User Provisioning
+
+Automate user provisioning to external systems:
+1. Create a target for your provisioning endpoint
+2. Set up an execution on user.human.added event
+3. User data is sent to your system when created
+
+## Permissions
+
+| Operation | Required Permission |
+|-----------|--------------------|
+| Create Target | `action.target.write` |
+| Update Target | `action.target.write` |
+| Delete Target | `action.target.delete` |
+| Get Target | `action.target.read` |
+| List Targets | `action.target.read` |
+| Set Execution | `action.execution.write` |
+| List Executions | `action.execution.read` |
+
+## Feature Flag
+
+The Actions feature must be enabled in your ZITADEL instance. If disabled, API calls will return a 400 error indicating the feature flag is not enabled.

@@ -1,0 +1,138 @@
+---
+title: Update Target
+description: Modify an existing target configuration
+---
+
+Updates an existing target's configuration. The target will be activated with the new settings immediately after the update.
+
+## HTTP Request
+
+```
+POST /v2/actions/targets/{id}
+```
+
+## Permissions
+
+Requires `action.target.write` permission.
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the target to update (1-200 characters).
+</ParamField>
+
+## Request Body
+
+<ParamField path="name" type="string">
+  Update the display name (1-1000 characters). If not set, name is unchanged.
+</ParamField>
+
+<ParamField path="target_type" type="object">
+  Update the target type. Choose one:
+  
+  <ParamField path="rest_webhook" type="object">
+    POST request where only the status code is checked.
+    
+    <ParamField path="interrupt_on_error" type="boolean">
+      If true, execution stops on non-2xx response.
+    </ParamField>
+  </ParamField>
+  
+  <ParamField path="rest_call" type="object">
+    POST request where status code and body are checked.
+    
+    <ParamField path="interrupt_on_error" type="boolean">
+      If true, execution stops on non-2xx response.
+    </ParamField>
+  </ParamField>
+  
+  <ParamField path="rest_async" type="object">
+    Asynchronous POST request.
+  </ParamField>
+</ParamField>
+
+<ParamField path="timeout" type="string">
+  Update the timeout duration (e.g., "10s"). Maximum is 270 seconds. If not set, timeout is unchanged.
+</ParamField>
+
+<ParamField path="endpoint" type="string">
+  Update the endpoint URL (1-2048 characters). If not set, endpoint is unchanged.
+</ParamField>
+
+<ParamField path="expiration_signing_key" type="string">
+  Regenerate the signing key. Set the graceful period for the existing key. Currently only immediate rotation ("0s") is supported. Future versions will support longer expirations for smooth key transitions.
+</ParamField>
+
+<ParamField path="payload_type" type="enum">
+  Update the payload type:
+  - `PAYLOAD_TYPE_JSON`: JSON with X-ZITADEL-Signature header
+  - `PAYLOAD_TYPE_JWT`: Signed JWT
+  - `PAYLOAD_TYPE_JWE`: Encrypted JWT
+  
+  If not set, payload type is unchanged.
+</ParamField>
+
+## Response
+
+<ResponseField name="change_date" type="timestamp">
+  When the target was updated.
+</ResponseField>
+
+<ResponseField name="signing_key" type="string">
+  New signing key (only returned if `expiration_signing_key` was set in the request). The previous key is immediately invalidated.
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X POST 'https://api.zitadel.cloud/v2/actions/targets/69629026806489455' \
+  -H 'Authorization: Bearer <TOKEN>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "ip_allow_list",
+    "rest_call": {
+      "interrupt_on_error": true
+    },
+    "timeout": "10s",
+    "endpoint": "https://example.com/hooks/ip_check",
+    "expiration_signing_key": "0s",
+    "payload_type": "PAYLOAD_TYPE_JWT"
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "change_date": "2025-01-23T10:34:18.051Z",
+  "signing_key": "Xk92Lpq3"
+}
+```
+
+## Error Responses
+
+| Status Code | Description |
+|-------------|-------------|
+| 400 | Feature flag `actions` not enabled or invalid request |
+| 401 | Unauthorized - missing or invalid authentication |
+| 403 | Forbidden - insufficient permissions |
+| 404 | Target not found |
+
+## Signing Key Rotation
+
+When you rotate the signing key:
+1. Set `expiration_signing_key` to "0s" (immediate rotation)
+2. The new signing key is returned in the response
+3. The previous signing key is immediately invalidated
+4. Update your endpoint to use the new signing key for verification
+
+**Important**: Currently only immediate rotation is supported. Plan for a brief period where your endpoint might receive requests with the old key during the rotation.
+
+## Notes
+
+- Changes take effect immediately
+- Only specified fields are updated; others remain unchanged
+- The target will be used with new settings in all executions
+- If the target is actively used in executions, test the changes carefully
+- Rotating the signing key invalidates the previous key immediately
+- Future versions will support graceful key rotation with overlapping validity periods

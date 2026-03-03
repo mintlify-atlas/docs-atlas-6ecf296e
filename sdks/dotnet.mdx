@@ -1,0 +1,338 @@
+---
+title: .NET SDK
+description: Integrate ZITADEL authentication into ASP.NET Core applications using OpenID Connect.
+---
+
+# .NET SDK
+
+Integrate ZITADEL into .NET applications using the built-in ASP.NET Core OpenID Connect middleware. This approach leverages Microsoft's well-tested authentication libraries for secure, production-ready integration.
+
+## Installation
+
+The required packages are included in ASP.NET Core. For .NET 6+:
+
+<CodeGroup>
+```bash dotnet
+dotnet add package Microsoft.AspNetCore.Authentication.OpenIdConnect
+```
+
+```xml PackageReference
+<PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="8.0.0" />
+```
+</CodeGroup>
+
+## Configuration
+
+Configure OIDC authentication in your `Program.cs`:
+
+```csharp
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add authentication services
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
+})
+.AddCookie()
+.AddOpenIdConnect(options =>
+{
+    // ZITADEL instance configuration
+    options.Authority = "https://your-instance.zitadel.cloud";
+    options.ClientId = builder.Configuration["Zitadel:ClientId"];
+    options.ClientSecret = builder.Configuration["Zitadel:ClientSecret"];
+    
+    // PKCE flow
+    options.ResponseType = OpenIdConnectResponseType.Code;
+    options.UsePkce = true;
+    
+    // Requested scopes
+    options.Scope.Clear();
+    options.Scope.Add("openid");
+    options.Scope.Add("profile");
+    options.Scope.Add("email");
+    options.Scope.Add("offline_access"); // For refresh tokens
+    
+    // Claims mapping
+    options.GetClaimsFromUserInfoEndpoint = true;
+    options.SaveTokens = true;
+    
+    // Callback paths
+    options.CallbackPath = "/auth/callback";
+    options.SignedOutCallbackPath = "/auth/logout/callback";
+});
+
+var app = builder.Build();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapRazorPages();
+app.Run();
+```
+
+## Application Settings
+
+Store configuration in `appsettings.json`:
+
+```json
+{
+  "Zitadel": {
+    "Domain": "https://your-instance.zitadel.cloud",
+    "ClientId": "your-client-id",
+    "ClientSecret": "your-client-secret"
+  }
+}
+```
+
+For production, use environment variables or Azure Key Vault:
+
+```bash
+dotnet user-secrets set "Zitadel:ClientId" "your-client-id"
+dotnet user-secrets set "Zitadel:ClientSecret" "your-client-secret"
+```
+
+## Authentication Flows
+
+### Login
+
+Create a login endpoint:
+
+```csharp
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.Mvc;
+
+public class AccountController : Controller
+{
+    [HttpGet("login")]
+    public IActionResult Login(string returnUrl = "/")
+    {
+        var properties = new AuthenticationProperties
+        {
+            RedirectUri = returnUrl
+        };
+        
+        return Challenge(properties, OpenIdConnectDefaults.AuthenticationScheme);
+    }
+}
+```
+
+### Logout
+
+Implement federated logout:
+
+```csharp
+[HttpGet("logout")]
+public async Task<IActionResult> Logout()
+{
+    await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+    
+    var properties = new AuthenticationProperties
+    {
+        RedirectUri = Url.Action("Index", "Home")
+    };
+    
+    return SignOut(properties, OpenIdConnectDefaults.AuthenticationScheme);
+}
+```
+
+### Protected Routes
+
+Use the `[Authorize]` attribute:
+
+```csharp
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+[Authorize]
+public class ProfileController : Controller
+{
+    public IActionResult Index()
+    {
+        return View();
+    }
+}
+```
+
+## Accessing User Information
+
+### In Controllers
+
+```csharp
+[Authorize]
+public class ProfileController : Controller
+{
+    public IActionResult Index()
+    {
+        var userId = User.FindFirst("sub")?.Value;
+        var email = User.FindFirst("email")?.Value;
+        var name = User.FindFirst("name")?.Value;
+        
+        ViewBag.UserId = userId;
+        ViewBag.Email = email;
+        ViewBag.Name = name;
+        
+        return View();
+    }
+}
+```
+
+### In Razor Views
+
+```cshtml
+@if (User.Identity?.IsAuthenticated == true)
+{
+    <p>Welcome, @User.Identity.Name!</p>
+    <p>Email: @User.FindFirst("email")?.Value</p>
+}
+else
+{
+    <a asp-controller="Account" asp-action="Login">Login</a>
+}
+```
+
+## Role-Based Authorization
+
+### Configure Role Claims
+
+Map ZITADEL roles to .NET claims:
+
+```csharp
+options.TokenValidationParameters = new TokenValidationParameters
+{
+    NameClaimType = "name",
+    RoleClaimType = "urn:zitadel:iam:org:project:roles"
+};
+
+options.Events = new OpenIdConnectEvents
+{
+    OnTokenValidated = context =>
+    {
+        var roles = context.Principal?.FindFirst("urn:zitadel:iam:org:project:roles")?.Value;
+        // Process roles as needed
+        return Task.CompletedTask;
+    }
+};
+```
+
+### Authorize by Role
+
+```csharp
+[Authorize(Roles = "admin")]
+public class AdminController : Controller
+{
+    public IActionResult Index()
+    {
+        return View();
+    }
+}
+```
+
+## API Authentication
+
+### JWT Bearer Token Validation
+
+For API endpoints, validate JWT tokens:
+
+```csharp
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.Authority = "https://your-instance.zitadel.cloud";
+        options.Audience = "your-api-client-id";
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true
+        };
+    });
+```
+
+### Protect API Endpoints
+
+```csharp
+[ApiController]
+[Route("api/[controller]")]
+[Authorize]
+public class UsersController : ControllerBase
+{
+    [HttpGet]
+    public IActionResult GetUsers()
+    {
+        var userId = User.FindFirst("sub")?.Value;
+        // Return user data
+        return Ok();
+    }
+    
+    [HttpGet("{id}")]
+    [Authorize(Roles = "admin")]
+    public IActionResult GetUser(string id)
+    {
+        // Admin-only endpoint
+        return Ok();
+    }
+}
+```
+
+## Calling ZITADEL APIs
+
+Use the Management API from .NET:
+
+```csharp
+using System.Net.Http.Headers;
+using System.Text.Json;
+
+public class ZitadelApiService
+{
+    private readonly HttpClient _httpClient;
+    private readonly string _accessToken;
+    
+    public ZitadelApiService(HttpClient httpClient, string accessToken)
+    {
+        _httpClient = httpClient;
+        _httpClient.BaseAddress = new Uri("https://your-instance.zitadel.cloud");
+        _accessToken = accessToken;
+    }
+    
+    public async Task<UserInfo> GetUserAsync(string userId)
+    {
+        _httpClient.DefaultRequestHeaders.Authorization = 
+            new AuthenticationHeaderValue("Bearer", _accessToken);
+            
+        var response = await _httpClient.GetAsync($"/v2/users/{userId}");
+        response.EnsureSuccessStatusCode();
+        
+        var content = await response.Content.ReadAsStringAsync();
+        return JsonSerializer.Deserialize<UserInfo>(content);
+    }
+}
+```
+
+## Best Practices
+
+1. **Use PKCE**: Always enable PKCE for web applications
+2. **Secure Secrets**: Never commit client secrets to source control
+3. **HTTPS Only**: Require HTTPS in production
+4. **Token Storage**: Use secure cookie settings for token storage
+5. **Session Timeout**: Configure appropriate session lifetimes
+
+## Resources
+
+- [ASP.NET Core Authentication Documentation](https://learn.microsoft.com/aspnet/core/security/authentication/)
+- [OpenID Connect with ASP.NET Core](https://learn.microsoft.com/aspnet/core/security/authentication/openid-connect)
+- [.NET Example Application](https://github.com/zitadel/example-auth-dotnet)
+- [ZITADEL OIDC Guide](/integration/oidc)
+
+## Next Steps
+
+- [View the API Reference](/api/overview)
+- [Learn about OIDC flows](/integration/oidc)
+- [Explore authentication concepts](/concepts/authentication)

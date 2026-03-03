@@ -1,0 +1,572 @@
+---
+title: Kubernetes Deployment
+description: Deploy ZITADEL on Kubernetes using the official Helm chart
+---
+
+Deploy ZITADEL on Kubernetes for production-grade, multi-node installations.
+
+## Prerequisites
+
+- Kubernetes cluster (1.23+)
+- Helm 3.8+
+- `kubectl` configured to access your cluster
+- PostgreSQL database (managed or self-hosted)
+- Ingress controller (nginx, Traefik, or similar)
+- TLS certificate (cert-manager or external)
+
+## Helm Chart Repository
+
+ZITADEL's official Helm chart is maintained in a separate repository:
+
+```bash
+helm repo add zitadel https://charts.zitadel.com
+helm repo update
+```
+
+Chart source: [github.com/zitadel/zitadel-charts](https://github.com/zitadel/zitadel-charts)
+
+## Quick Start
+
+<Steps>
+
+<Step title="Create namespace">
+
+```bash
+kubectl create namespace zitadel
+```
+
+</Step>
+
+<Step title="Configure values">
+
+Create `values.yaml`:
+
+```yaml values.yaml
+zitadel:
+  # Masterkey for encryption (exactly 32 characters)
+  masterkey: "MasterkeyNeedsToHave32Characters"
+  
+  configmapConfig:
+    ExternalDomain: auth.example.com
+    ExternalPort: 443
+    ExternalSecure: true
+    TLS:
+      Enabled: false  # TLS terminated at ingress
+    
+    Database:
+      postgres:
+        Host: postgres.database.svc.cluster.local
+        Port: 5432
+        Database: zitadel
+        User:
+          Username: zitadel
+          Password: ""
+          SSL:
+            Mode: require
+        Admin:
+          Username: postgres
+          Password: ""
+          SSL:
+            Mode: require
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: auth.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: zitadel-tls
+      hosts:
+        - auth.example.com
+
+replicaCount: 2
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+```
+
+<Warning>
+Never commit the masterkey to version control. Use Kubernetes secrets or a secrets management solution.
+</Warning>
+
+</Step>
+
+<Step title="Install ZITADEL">
+
+```bash
+helm install zitadel zitadel/zitadel \
+  --namespace zitadel \
+  --values values.yaml \
+  --wait
+```
+
+</Step>
+
+<Step title="Verify deployment">
+
+```bash
+kubectl get pods -n zitadel
+kubectl get ingress -n zitadel
+```
+
+Access ZITADEL at `https://auth.example.com`
+
+</Step>
+
+</Steps>
+
+## Database Configuration
+
+### External PostgreSQL
+
+For production, use a managed PostgreSQL service:
+
+```yaml values.yaml
+zitadel:
+  configmapConfig:
+    Database:
+      postgres:
+        Host: postgres.rds.amazonaws.com
+        Port: 5432
+        Database: zitadel
+        MaxOpenConns: 25
+        MaxIdleConns: 10
+        MaxConnLifetime: 30m
+        MaxConnIdleTime: 5m
+        User:
+          Username: zitadel
+          SSL:
+            Mode: require
+            # Optional: provide CA cert for SSL
+            RootCert: |
+              -----BEGIN CERTIFICATE-----
+              ...
+              -----END CERTIFICATE-----
+        Admin:
+          Username: postgres
+          SSL:
+            Mode: require
+
+# Provide credentials via secret
+zitadelSecrets:
+  Database:
+    postgres:
+      User:
+        Password: "<zitadel-user-password>"
+      Admin:
+        Password: "<postgres-admin-password>"
+```
+
+### In-Cluster PostgreSQL (Not Recommended for Production)
+
+For development/testing only:
+
+```yaml values.yaml
+postgresql:
+  enabled: true
+  auth:
+    username: zitadel
+    password: zitadel
+    database: zitadel
+    postgresPassword: postgres
+  primary:
+    persistence:
+      size: 20Gi
+
+zitadel:
+  configmapConfig:
+    Database:
+      postgres:
+        Host: zitadel-postgresql
+        Port: 5432
+        Database: zitadel
+        User:
+          Username: zitadel
+          SSL:
+            Mode: disable
+        Admin:
+          Username: postgres
+          SSL:
+            Mode: disable
+```
+
+## Ingress Configuration
+
+### NGINX Ingress Controller
+
+```yaml values.yaml
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+  hosts:
+    - host: auth.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: zitadel-tls
+      hosts:
+        - auth.example.com
+```
+
+### Traefik Ingress
+
+```yaml values.yaml
+ingress:
+  enabled: true
+  className: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+  hosts:
+    - host: auth.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: zitadel-tls
+      hosts:
+        - auth.example.com
+```
+
+### gRPC Support
+
+<Note>
+ZITADEL's HTTP/2 backend supports gRPC, gRPC-Web, and REST simultaneously. No special ingress configuration is needed for gRPC.
+</Note>
+
+For NGINX ingress with gRPC:
+```yaml
+ingress:
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    nginx.ingress.kubernetes.io/grpc-backend: "true"
+```
+
+## High Availability Configuration
+
+### Multiple Replicas
+
+```yaml values.yaml
+replicaCount: 3
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - zitadel
+          topologyKey: kubernetes.io/hostname
+```
+
+### Pod Disruption Budget
+
+```yaml values.yaml
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+```
+
+### Readiness and Liveness Probes
+
+```yaml values.yaml
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  failureThreshold: 3
+
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 60
+  periodSeconds: 30
+  failureThreshold: 3
+```
+
+## Secrets Management
+
+### Using Kubernetes Secrets
+
+Create a secret for the masterkey:
+
+```bash
+kubectl create secret generic zitadel-masterkey \
+  --from-literal=masterkey="$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32)" \
+  -n zitadel
+```
+
+Reference in values:
+```yaml values.yaml
+zitadel:
+  masterkeySecretName: zitadel-masterkey
+```
+
+### Using External Secrets Operator
+
+```yaml
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: zitadel-secrets
+  namespace: zitadel
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-secretsmanager
+    kind: SecretStore
+  target:
+    name: zitadel-secrets
+  data:
+    - secretKey: masterkey
+      remoteRef:
+        key: zitadel/masterkey
+    - secretKey: database-password
+      remoteRef:
+        key: zitadel/database-password
+```
+
+## Resource Requirements
+
+### Small Deployment (< 1000 users)
+
+```yaml values.yaml
+replicaCount: 2
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+zitadel:
+  configmapConfig:
+    Database:
+      postgres:
+        MaxOpenConns: 10
+        MaxIdleConns: 5
+```
+
+### Medium Deployment (1000-10000 users)
+
+```yaml values.yaml
+replicaCount: 3
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+zitadel:
+  configmapConfig:
+    Database:
+      postgres:
+        MaxOpenConns: 25
+        MaxIdleConns: 10
+```
+
+### Large Deployment (> 10000 users)
+
+```yaml values.yaml
+replicaCount: 5
+
+resources:
+  requests:
+    cpu: 1000m
+    memory: 1Gi
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+
+zitadel:
+  configmapConfig:
+    Database:
+      postgres:
+        MaxOpenConns: 50
+        MaxIdleConns: 20
+```
+
+## Monitoring and Observability
+
+### Prometheus Metrics
+
+Enable Prometheus ServiceMonitor:
+
+```yaml values.yaml
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+
+zitadel:
+  configmapConfig:
+    Instrumentation:
+      Metric:
+        Exporter:
+          Type: prometheus
+```
+
+### OpenTelemetry Tracing
+
+```yaml values.yaml
+zitadel:
+  configmapConfig:
+    Instrumentation:
+      ServiceName: zitadel
+      Trace:
+        Fraction: 1.0
+        Exporter:
+          Type: grpc
+          Endpoint: otel-collector.monitoring.svc.cluster.local:4317
+          Insecure: true
+```
+
+### Structured Logging
+
+```yaml values.yaml
+zitadel:
+  configmapConfig:
+    Instrumentation:
+      Log:
+        Level: INFO
+        Format: json
+        Streams:
+          - runtime
+          - request
+          - event_handler
+          - queue
+```
+
+## Multi-Tenancy
+
+ZITADEL supports multiple instances (tenants) within a single deployment:
+
+```yaml values.yaml
+zitadel:
+  configmapConfig:
+    InstanceHostHeaders:
+      - x-zitadel-instance-host
+    PublicHostHeaders:
+      - x-zitadel-public-host
+```
+
+Configure your ingress to forward the appropriate headers:
+
+```yaml
+ingress:
+  annotations:
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header X-Zitadel-Instance-Host $host;
+```
+
+## Upgrading
+
+<Steps>
+
+<Step title="Review release notes">
+
+Check the [ZITADEL releases](https://github.com/zitadel/zitadel/releases) for breaking changes.
+
+</Step>
+
+<Step title="Update Helm chart">
+
+```bash
+helm repo update
+helm search repo zitadel/zitadel --versions
+```
+
+</Step>
+
+<Step title="Upgrade installation">
+
+```bash
+helm upgrade zitadel zitadel/zitadel \
+  --namespace zitadel \
+  --values values.yaml \
+  --wait
+```
+
+</Step>
+
+<Step title="Verify upgrade">
+
+```bash
+kubectl get pods -n zitadel
+kubectl logs -n zitadel -l app.kubernetes.io/name=zitadel
+```
+
+</Step>
+
+</Steps>
+
+## Troubleshooting
+
+### Pod Crash Loop
+
+```bash
+# Check pod logs
+kubectl logs -n zitadel <pod-name>
+
+# Check events
+kubectl describe pod -n zitadel <pod-name>
+
+# Check configuration
+kubectl get configmap -n zitadel zitadel-config -o yaml
+```
+
+### Database Connection Issues
+
+```bash
+# Test database connectivity from pod
+kubectl exec -n zitadel <pod-name> -- \
+  sh -c 'apk add postgresql-client && \
+  psql -h $ZITADEL_DATABASE_POSTGRES_HOST \
+       -U $ZITADEL_DATABASE_POSTGRES_USER_USERNAME \
+       -d $ZITADEL_DATABASE_POSTGRES_DATABASE \
+       -c "SELECT version();"'
+```
+
+### Instance Not Found
+
+Verify external domain configuration:
+
+```bash
+kubectl get configmap -n zitadel zitadel-config -o yaml | grep -A3 External
+```
+
+Ensure `ExternalDomain`, `ExternalPort`, and `ExternalSecure` match your ingress:
+
+```yaml
+ExternalDomain: auth.example.com
+ExternalPort: 443
+ExternalSecure: true
+```
+
+## Next Steps
+
+- [Configuration Reference](/deployment/configuration) - Complete configuration options
+- [Production Best Practices](/deployment/production) - Security hardening and optimization
+- [Helm Chart Documentation](https://github.com/zitadel/zitadel-charts) - Detailed chart configuration

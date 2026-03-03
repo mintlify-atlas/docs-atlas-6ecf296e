@@ -1,0 +1,333 @@
+---
+title: API Authentication
+description: Learn how to authenticate API requests to ZITADEL using JWT Profile, Personal Access Tokens, and Client Credentials
+---
+
+## Authentication Methods
+
+ZITADEL API uses OAuth 2.0 for authentication and authorization. All API requests must include a valid access token in the `Authorization` header:
+
+```bash
+Authorization: Bearer <access_token>
+```
+
+There are three primary authentication methods for machine-to-machine API access:
+
+1. **JWT Profile** (Recommended for service accounts)
+2. **Personal Access Tokens (PAT)** (Quick testing and scripts)
+3. **Client Credentials** (Standard OAuth 2.0 flow)
+
+## JWT Profile Authentication
+
+JWT Profile is the recommended method for authenticating service accounts. It uses public-key cryptography for secure, rotatable credentials.
+
+### How It Works
+
+1. Create a service account in ZITADEL
+2. Generate a JSON key file containing the private key
+3. Create and sign a JWT assertion
+4. Exchange the JWT for an access token
+5. Use the access token to call ZITADEL APIs
+
+### Setting Up JWT Profile
+
+#### Step 1: Create a Service Account
+
+Using the ZITADEL Console:
+1. Navigate to **Users** → **Service Accounts**
+2. Click **New**
+3. Enter a name and username
+4. Select **JWT** as the access token type
+5. Click **Create**
+
+#### Step 2: Generate a Key
+
+1. In the service account details, go to **Keys**
+2. Click **New**
+3. Select an expiration date
+4. Click **Add** and download the JSON key file
+
+**Important**: Save the key file securely. You cannot retrieve it again.
+
+The key file contains:
+
+```json
+{
+  "type": "serviceaccount",
+  "keyId": "181693565968772648",
+  "key": "-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----",
+  "userId": "178366401571647008"
+}
+```
+
+#### Step 3: Create a JWT Assertion
+
+Create a JWT with the following structure:
+
+**Header**:
+```json
+{
+  "alg": "RS256",
+  "kid": "181693565968772648"
+}
+```
+
+**Payload**:
+```json
+{
+  "iss": "178366401571647008",
+  "sub": "178366401571647008",
+  "aud": "https://my-domain.zitadel.cloud",
+  "iat": 1605179982,
+  "exp": 1605183582
+}
+```
+
+**Claims**:
+- `iss` (issuer): Service account user ID from the key file
+- `sub` (subject): Service account user ID from the key file
+- `aud` (audience): Your ZITADEL instance URL
+- `iat` (issued at): Current Unix timestamp (must not be older than 1 hour)
+- `exp` (expiration): Unix timestamp when the JWT expires
+- `kid` (key ID): Key ID from the key file (in header)
+
+Sign the JWT using RS256 with the private key from the downloaded file.
+
+#### Step 4: Exchange JWT for Access Token
+
+Send a POST request to the token endpoint:
+
+```bash
+curl -X POST https://my-domain.zitadel.cloud/oauth/v2/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer" \
+  -d "assertion=<base64_encoded_jwt>" \
+  -d "scope=openid urn:zitadel:iam:org:project:id:zitadel:aud"
+```
+
+Response:
+
+```json
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6...",
+  "token_type": "Bearer",
+  "expires_in": 3600
+}
+```
+
+### Example: Python
+
+```python
+import jwt
+import requests
+import json
+import time
+from datetime import datetime, timedelta
+
+# Load the key file
+with open('service-account-key.json', 'r') as f:
+    key_data = json.load(f)
+
+# Create JWT assertion
+now = int(time.time())
+payload = {
+    'iss': key_data['userId'],
+    'sub': key_data['userId'],
+    'aud': 'https://my-domain.zitadel.cloud',
+    'iat': now,
+    'exp': now + 3600
+}
+
+headers = {
+    'alg': 'RS256',
+    'kid': key_data['keyId']
+}
+
+# Sign the JWT
+assertion = jwt.encode(payload, key_data['key'], algorithm='RS256', headers=headers)
+
+# Exchange for access token
+token_response = requests.post(
+    'https://my-domain.zitadel.cloud/oauth/v2/token',
+    data={
+        'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        'assertion': assertion,
+        'scope': 'openid urn:zitadel:iam:org:project:id:zitadel:aud'
+    }
+)
+
+access_token = token_response.json()['access_token']
+
+# Use the access token
+response = requests.get(
+    'https://my-domain.zitadel.cloud/v2/users/178366401571647008',
+    headers={'Authorization': f'Bearer {access_token}'}
+)
+
+print(response.json())
+```
+
+## Personal Access Tokens (PAT)
+
+Personal Access Tokens provide a simpler authentication method ideal for testing, scripts, and development.
+
+### Creating a PAT
+
+#### Via ZITADEL Console
+
+1. Navigate to your service account
+2. Go to **Personal Access Tokens**
+3. Click **New**
+4. Set an expiration date
+5. Click **Add**
+6. Copy the token immediately (you cannot retrieve it later)
+
+#### Via API
+
+You can also create PATs programmatically:
+
+```bash
+curl -X POST https://my-domain.zitadel.cloud/v2/users/{user_id}/pats \
+  -H "Authorization: Bearer <existing_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "expiration_date": "2025-12-31T23:59:59Z"
+  }'
+```
+
+Response:
+
+```json
+{
+  "id": "269629012906488334",
+  "token": "dEnGhPMCdGjUjGmLfGxIbQjUpUrrZhoirIWohsusbaWLlqpcFUjzfoFKMHx...",
+  "creation_date": "2024-03-03T10:30:00Z",
+  "expiration_date": "2025-12-31T23:59:59Z"
+}
+```
+
+### Using a PAT
+
+Simply include the PAT in the Authorization header:
+
+```bash
+curl https://my-domain.zitadel.cloud/v2/users/178366401571647008 \
+  -H "Authorization: Bearer dEnGhPMCdGjUjGmLfGxIbQjUpUrrZhoirIWohsusbaWLlqpcFUjzfoFKMHx..."
+```
+
+**Note**: PATs do not expire automatically during their validity period but should be rotated regularly for security.
+
+## Client Credentials Flow
+
+The Client Credentials flow is a standard OAuth 2.0 method for machine-to-machine authentication.
+
+### Setting Up Client Credentials
+
+1. Create an application in ZITADEL (type: API)
+2. Configure authentication method as **Client Secret** or **JWT**
+3. Note the `client_id` and `client_secret`
+
+### Obtaining an Access Token
+
+```bash
+curl -X POST https://my-domain.zitadel.cloud/oauth/v2/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=client_credentials" \
+  -d "client_id=<client_id>" \
+  -d "client_secret=<client_secret>" \
+  -d "scope=openid urn:zitadel:iam:org:project:id:zitadel:aud"
+```
+
+Response:
+
+```json
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6...",
+  "token_type": "Bearer",
+  "expires_in": 43200
+}
+```
+
+## Required Scopes
+
+For ZITADEL API access, include these scopes:
+
+- `openid`: Required for OIDC
+- `urn:zitadel:iam:org:project:id:zitadel:aud`: Grants access to ZITADEL management APIs
+
+Additional scopes for specific use cases:
+- `email`: Access to email address
+- `profile`: Access to profile information
+- `offline_access`: Request a refresh token
+
+## Authorization and Permissions
+
+Authentication confirms identity; authorization determines what actions are permitted.
+
+### Permission Model
+
+ZITADEL uses a role-based permission system:
+
+- **Instance-level**: Permissions across the entire instance (e.g., `iam.write`)
+- **Organization-level**: Permissions within a specific organization (e.g., `org.write`)
+- **Resource-level**: Permissions on specific resources (e.g., `user.write`)
+
+### Common Permissions
+
+| Permission | Description |
+|------------|-------------|
+| `authenticated` | Any authenticated user |
+| `user.read` | Read user information |
+| `user.write` | Create and modify users |
+| `org.read` | Read organization information |
+| `org.write` | Create and modify organizations |
+| `org.create` | Create new organizations |
+
+Permissions are checked automatically by the API based on:
+1. The access token's grants
+2. The resource being accessed
+3. The user's assigned roles
+
+## Token Introspection
+
+To validate and inspect an access token:
+
+```bash
+curl -X POST https://my-domain.zitadel.cloud/oauth/v2/introspect \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "token=<access_token>" \
+  -d "client_id=<client_id>" \
+  -d "client_secret=<client_secret>"
+```
+
+Response:
+
+```json
+{
+  "active": true,
+  "scope": "openid urn:zitadel:iam:org:project:id:zitadel:aud",
+  "client_id": "178366401571647008",
+  "token_type": "Bearer",
+  "exp": 1605183582,
+  "iat": 1605179982,
+  "sub": "178366401571647008",
+  "aud": ["178366401571647008"],
+  "iss": "https://my-domain.zitadel.cloud"
+}
+```
+
+## Security Best Practices
+
+1. **Rotate credentials regularly**: Update keys and tokens periodically
+2. **Use appropriate token lifetimes**: Shorter for higher security, longer for convenience
+3. **Store secrets securely**: Never commit keys or tokens to version control
+4. **Use JWT Profile for production**: More secure than PATs with key rotation support
+5. **Implement token refresh**: Handle token expiration gracefully
+6. **Limit scope**: Request only the scopes your application needs
+7. **Monitor usage**: Track API usage and watch for anomalies
+
+## Next Steps
+
+<Card title="Quickstart Guide" icon="rocket" href="/api/quickstart">
+  Make your first authenticated API call
+</Card>

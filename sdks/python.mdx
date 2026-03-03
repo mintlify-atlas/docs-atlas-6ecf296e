@@ -1,0 +1,268 @@
+---
+title: Python SDK
+description: Integrate ZITADEL into Python applications using the official Python client library.
+---
+
+# Python SDK
+
+The ZITADEL Python client library provides programmatic access to ZITADEL's Management API from Python applications (3.9+).
+
+<Callout type="info">
+**Management API Client**
+
+This library is designed for server-to-server communication to manage your ZITADEL instance (e.g., creating users, managing projects). For end-user authentication, use a standard OIDC library like `authlib`, `mozilla-django-oidc`, or `python-social-auth`.
+</Callout>
+
+<Callout type="warning">
+This client library is currently in an **incubating stage**. The API may evolve and introduce breaking changes in future updates. Use with caution in production environments.
+</Callout>
+
+## Installation
+
+Install the client library using pip:
+
+<CodeGroup>
+```bash pip
+pip install --pre zitadel-client
+```
+
+```bash poetry
+poetry add zitadel-client --allow-prereleases
+```
+</CodeGroup>
+
+## Authentication Methods
+
+The SDK supports three authentication methods. Choose based on your security requirements and environment.
+
+### 1. Private Key JWT (Recommended for Production)
+
+Use a JSON Web Token signed with a private key from a JSON file:
+
+```python
+import zitadel_client as zitadel
+from zitadel_client.exceptions import ApiError
+from zitadel_client.models import (
+    UserServiceAddHumanUserRequest,
+    UserServiceSetHumanEmail,
+    UserServiceSetHumanProfile,
+)
+
+# Initialize client with private key
+client = zitadel.Zitadel.with_private_key(
+    "https://your-instance.zitadel.cloud",
+    "path/to/service-account-key.json"
+)
+
+try:
+    request = UserServiceAddHumanUserRequest(
+        username="alice@example.com",
+        profile=UserServiceSetHumanProfile(
+            givenName="Alice",
+            familyName="Smith"
+        ),
+        email=UserServiceSetHumanEmail(
+            email="alice@example.com"
+        ),
+    )
+    response = client.users.add_human_user(request)
+    print(f"User created with ID: {response.user_id}")
+except ApiError as e:
+    print(f"Error: {e}")
+```
+
+### 2. Client Credentials Grant
+
+Use client ID and secret for server-to-server authentication:
+
+```python
+import zitadel_client as zitadel
+
+# Initialize with client credentials
+client = zitadel.Zitadel.with_client_credentials(
+    "https://your-instance.zitadel.cloud",
+    "your-client-id",
+    "your-client-secret"
+)
+```
+
+### 3. Personal Access Token (Development/Testing)
+
+Use a pre-generated personal access token:
+
+```python
+import zitadel_client as zitadel
+
+# Initialize with PAT
+client = zitadel.Zitadel.with_access_token(
+    "https://your-instance.zitadel.cloud",
+    "your-personal-access-token"
+)
+```
+
+## Basic Usage
+
+### Create a User
+
+```python
+from zitadel_client.models import (
+    UserServiceAddHumanUserRequest,
+    UserServiceSetHumanEmail,
+    UserServiceSetHumanProfile,
+)
+
+request = UserServiceAddHumanUserRequest(
+    username="john.doe",
+    profile=UserServiceSetHumanProfile(
+        givenName="John",
+        familyName="Doe",
+        displayName="John Doe"
+    ),
+    email=UserServiceSetHumanEmail(
+        email="john.doe@example.com",
+        isVerified=False
+    ),
+)
+
+try:
+    response = client.users.add_human_user(request)
+    print(f"User created: {response.user_id}")
+except ApiError as e:
+    print(f"Failed to create user: {e}")
+```
+
+### Get User Information
+
+```python
+try:
+    user = client.users.get_user(user_id="123456789")
+    
+    if user.user.human:
+        profile = user.user.human.profile
+        print(f"Name: {profile.given_name} {profile.family_name}")
+        print(f"Email: {user.user.human.email.email}")
+except ApiError as e:
+    print(f"Error retrieving user: {e}")
+```
+
+### Update User
+
+```python
+from zitadel_client.models import (
+    UserServiceUpdateHumanUserRequest,
+    UserServiceSetHumanProfile,
+)
+
+update_request = UserServiceUpdateHumanUserRequest(
+    user_id="123456789",
+    profile=UserServiceSetHumanProfile(
+        givenName="Jane",
+        familyName="Doe"
+    )
+)
+
+try:
+    response = client.users.update_human_user(update_request)
+    print("User updated successfully")
+except ApiError as e:
+    print(f"Update failed: {e}")
+```
+
+### List Users
+
+```python
+try:
+    users = client.users.list_users(
+        limit=50,
+        offset=0
+    )
+    
+    for user in users.result:
+        print(f"User: {user.user_name} (ID: {user.id})")
+except ApiError as e:
+    print(f"Error listing users: {e}")
+```
+
+## Organization Management
+
+### Create an Organization
+
+```python
+from zitadel_client.models import OrganizationServiceAddOrganizationRequest
+
+request = OrganizationServiceAddOrganizationRequest(
+    name="Acme Corporation"
+)
+
+try:
+    response = client.organizations.add_organization(request)
+    print(f"Organization created: {response.organization_id}")
+except ApiError as e:
+    print(f"Error: {e}")
+```
+
+## Error Handling
+
+Handle API errors gracefully:
+
+```python
+from zitadel_client.exceptions import ApiError, AuthenticationError
+
+try:
+    response = client.users.add_human_user(request)
+except AuthenticationError as e:
+    print(f"Authentication failed: {e}")
+except ApiError as e:
+    print(f"API error: {e.status_code} - {e.message}")
+except Exception as e:
+    print(f"Unexpected error: {e}")
+```
+
+## Framework Integration
+
+### Django Integration
+
+For user authentication in Django, use `mozilla-django-oidc`:
+
+```python
+# settings.py
+OIDC_RP_CLIENT_ID = 'your-client-id'
+OIDC_RP_CLIENT_SECRET = 'your-client-secret'
+OIDC_OP_AUTHORIZATION_ENDPOINT = 'https://your-instance.zitadel.cloud/oauth/v2/authorize'
+OIDC_OP_TOKEN_ENDPOINT = 'https://your-instance.zitadel.cloud/oauth/v2/token'
+OIDC_OP_USER_ENDPOINT = 'https://your-instance.zitadel.cloud/oidc/v1/userinfo'
+```
+
+### Flask Integration
+
+For Flask applications, use `authlib`:
+
+```python
+from authlib.integrations.flask_client import OAuth
+
+oauth = OAuth(app)
+zitadel = oauth.register(
+    'zitadel',
+    client_id='your-client-id',
+    client_secret='your-client-secret',
+    server_metadata_url='https://your-instance.zitadel.cloud/.well-known/openid-configuration',
+    client_kwargs={'scope': 'openid profile email'}
+)
+```
+
+## Versioning
+
+The client library version aligns with ZITADEL core project versions. Version 2.x.x is built for and tested against ZITADEL v2.
+
+## Resources
+
+- [GitHub Repository](https://github.com/zitadel/client-python)
+- [PyPI Package](https://pypi.org/project/zitadel-client)
+- [Service Account Authentication Guide](/authentication/social-login)
+- [Python Examples](/examples/python)
+
+## Next Steps
+
+- [Explore Python framework examples](/examples/python)
+- [Learn about service accounts](/authentication/social-login)
+- [Read the API documentation](/api/overview)

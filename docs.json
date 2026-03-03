@@ -1,122 +1,179 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "ZITADEL",
+  "theme": "linden",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#5469d4",
+    "light": "#bec6ef",
+    "dark": "#2073c4"
   },
-  "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/zitadel/zitadel"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/zitadel/zitadel"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Overview",
+            "pages": ["introduction", "quickstart"]
+          },
+          {
+            "group": "Core Concepts",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "concepts/architecture",
+              "concepts/multi-tenancy",
+              "concepts/authentication",
+              "concepts/authorization",
+              "concepts/event-sourcing"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Deployment",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "deployment/docker-compose",
+              "deployment/kubernetes",
+              "deployment/configuration",
+              "deployment/production"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "User Management",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "user-management/users",
+              "user-management/organizations",
+              "user-management/projects",
+              "user-management/roles"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Authentication",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "authentication/login-ui",
+              "authentication/passkeys",
+              "authentication/mfa",
+              "authentication/social-login",
+              "authentication/ldap"
+            ]
+          },
+          {
+            "group": "Integration",
+            "pages": [
+              "integration/oidc",
+              "integration/saml",
+              "integration/scim",
+              "integration/actions",
+              "integration/webhooks"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Getting Started",
+            "pages": ["api/overview", "api/authentication", "api/quickstart"]
+          },
+          {
+            "group": "User Service",
             "pages": [
-              "api-reference/introduction"
+              "api/user-service/overview",
+              "api/user-service/create-user",
+              "api/user-service/update-user",
+              "api/user-service/delete-user",
+              "api/user-service/list-users"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Organization Service",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api/organization-service/overview",
+              "api/organization-service/create-organization",
+              "api/organization-service/update-organization",
+              "api/organization-service/list-organizations"
+            ]
+          },
+          {
+            "group": "Project Service",
+            "pages": [
+              "api/project-service/overview",
+              "api/project-service/create-project",
+              "api/project-service/update-project",
+              "api/project-service/list-projects"
+            ]
+          },
+          {
+            "group": "Application Service",
+            "pages": [
+              "api/application-service/overview",
+              "api/application-service/create-application",
+              "api/application-service/update-application",
+              "api/application-service/list-applications"
+            ]
+          },
+          {
+            "group": "Session Service",
+            "pages": [
+              "api/session-service/overview",
+              "api/session-service/create-session",
+              "api/session-service/list-sessions",
+              "api/session-service/terminate-session"
+            ]
+          },
+          {
+            "group": "Action Service",
+            "pages": [
+              "api/action-service/overview",
+              "api/action-service/create-action",
+              "api/action-service/update-action",
+              "api/action-service/list-actions"
+            ]
+          },
+          {
+            "group": "Admin Service",
+            "pages": [
+              "api/admin-service/overview",
+              "api/admin-service/instance-management",
+              "api/admin-service/system-settings"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "SDKs & Examples",
+        "groups": [
+          {
+            "group": "SDKs",
+            "pages": [
+              "sdks/overview",
+              "sdks/javascript",
+              "sdks/go",
+              "sdks/python",
+              "sdks/dotnet"
+            ]
+          },
+          {
+            "group": "Examples",
+            "pages": [
+              "examples/nextjs",
+              "examples/react",
+              "examples/angular",
+              "examples/nodejs",
+              "examples/python"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

@@ -1,0 +1,375 @@
+---
+title: Docker Compose Deployment
+description: Deploy ZITADEL using Docker Compose for single-node installations
+---
+
+Deploy ZITADEL using Docker Compose for development, homelab, or single-node production environments.
+
+## Architecture
+
+The Docker Compose deployment consists of four core services:
+
+- **zitadel-api**: Go backend (port 8080)
+- **zitadel-login**: Next.js login UI (port 3000)
+- **postgres**: PostgreSQL database
+- **proxy**: Traefik reverse proxy (ports 80/443)
+
+Optional services:
+- **redis**: Cache connector (enabled with `--profile cache`)
+- **otel-collector**: Observability (enabled with `--profile observability`)
+
+## Quick Start
+
+<Steps>
+
+<Step title="Create environment file">
+
+Copy the example environment file and configure your domain:
+
+```bash
+curl -o .env https://raw.githubusercontent.com/zitadel/zitadel/main/deploy/compose/.env.example
+```
+
+Edit `.env` and update:
+
+```bash .env
+ZITADEL_DOMAIN=localhost
+ZITADEL_MASTERKEY=MasterkeyNeedsToHave32Characters
+```
+
+<Warning>
+The masterkey must be exactly 32 characters. Generate a secure key for production:
+```bash
+tr -dc A-Za-z0-9 </dev/urandom | head -c 32
+```
+</Warning>
+
+</Step>
+
+<Step title="Download Docker Compose file">
+
+```bash
+curl -o docker-compose.yml https://raw.githubusercontent.com/zitadel/zitadel/main/deploy/compose/docker-compose.yml
+```
+
+</Step>
+
+<Step title="Start ZITADEL">
+
+```bash
+docker compose up -d --wait
+```
+
+The `--wait` flag ensures all services are healthy before returning.
+
+</Step>
+
+<Step title="Access ZITADEL">
+
+Open your browser to:
+
+```
+http://localhost:8080
+```
+
+Default admin credentials:
+- Username: `zitadel-admin`
+- Password: Set during first login
+
+</Step>
+
+</Steps>
+
+## TLS Modes
+
+ZITADEL supports four TLS deployment modes via Docker Compose overlays.
+
+### Local Development (No TLS)
+
+Default mode for local development:
+
+```bash
+docker compose up -d --wait
+```
+
+Configuration:
+```bash .env
+ZITADEL_DOMAIN=localhost
+ZITADEL_EXTERNALPORT=8080
+ZITADEL_EXTERNALSECURE=false
+PROXY_HTTP_PUBLISHED_PORT=8080
+```
+
+### Let's Encrypt (Automatic TLS)
+
+Automatic TLS certificates via ACME HTTP challenge:
+
+```bash
+curl -o docker-compose.mode-letsencrypt.yml https://raw.githubusercontent.com/zitadel/zitadel/main/deploy/compose/docker-compose.mode-letsencrypt.yml
+
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.mode-letsencrypt.yml \
+  up -d --wait
+```
+
+Configuration:
+```bash .env
+ZITADEL_DOMAIN=auth.example.com
+ZITADEL_EXTERNALPORT=443
+ZITADEL_EXTERNALSECURE=true
+LETSENCRYPT_EMAIL=ops@example.com
+```
+
+<Note>
+Ensure ports 80 and 443 are accessible from the internet for the ACME challenge.
+</Note>
+
+### External TLS Termination
+
+For deployments behind an upstream load balancer or reverse proxy:
+
+```bash
+curl -o docker-compose.mode-external-tls.yml https://raw.githubusercontent.com/zitadel/zitadel/main/deploy/compose/docker-compose.mode-external-tls.yml
+
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.mode-external-tls.yml \
+  up -d --wait
+```
+
+Configuration:
+```bash .env
+ZITADEL_DOMAIN=auth.example.com
+ZITADEL_EXTERNALPORT=443
+ZITADEL_EXTERNALSECURE=true
+# Trusted proxy IPs (CIDR notation)
+TRAEFIK_TRUSTED_IPS=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+```
+
+<Warning>
+Configure `TRAEFIK_TRUSTED_IPS` to include only your upstream proxy's IP ranges to prevent header spoofing.
+</Warning>
+
+### Local TLS (Self-Signed)
+
+For testing TLS locally with self-signed certificates:
+
+```bash
+curl -o docker-compose.mode-local-tls.yml https://raw.githubusercontent.com/zitadel/zitadel/main/deploy/compose/docker-compose.mode-local-tls.yml
+curl -o traefik-local-tls.yml https://raw.githubusercontent.com/zitadel/zitadel/main/deploy/compose/traefik-local-tls.yml
+
+mkdir -p certs
+openssl req -x509 -newkey rsa:4096 -keyout certs/key.pem -out certs/cert.pem \
+  -days 365 -nodes -subj "/CN=localhost"
+
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.mode-local-tls.yml \
+  up -d --wait
+```
+
+Configuration:
+```bash .env
+ZITADEL_DOMAIN=localhost
+ZITADEL_EXTERNALPORT=8443
+ZITADEL_EXTERNALSECURE=true
+```
+
+## Routing Configuration
+
+Traefik routes traffic based on path prefixes:
+
+| Priority | Path | Service | Purpose |
+|----------|------|---------|----------|
+| 400 | `/` | zitadel-login | Root redirect to login UI |
+| 250 | `/ui/v2/login` | zitadel-login | Login UI and assets |
+| 200 | `/api` | zitadel-api | API alias (stripped to root) |
+| 100 | Everything else | zitadel-api | OIDC, SAML, gRPC, API v2 |
+
+The `/api` prefix is a convenience alias. Canonical protocol paths remain at root:
+- `/.well-known/openid-configuration`
+- `/oauth/v2/authorize`
+- `/v2/...` (API v2 REST endpoints)
+
+<Note>
+gRPC and gRPC-Web traffic is automatically handled by Traefik's h2c backend configuration. No special path routing is needed.
+</Note>
+
+## Production-Like Setup
+
+For production environments, use separate init, setup, and start phases:
+
+```bash
+curl -o docker-compose.prodlike.yml https://raw.githubusercontent.com/zitadel/zitadel/main/deploy/compose/docker-compose.prodlike.yml
+
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.prodlike.yml \
+  up -d --wait
+```
+
+This overlay:
+- Runs `zitadel init` as a separate one-shot container
+- Runs `zitadel setup` as a separate one-shot container
+- Starts `zitadel-api` with `start` command only
+
+Benefits:
+- Clearer separation of initialization vs. runtime
+- Easier to manage database migrations
+- Better suited for GitOps workflows
+
+## Optional Features
+
+### Redis Cache
+
+Enable Redis for distributed caching:
+
+```bash
+docker compose --profile cache up -d redis
+```
+
+Update `.env`:
+```bash .env
+ZITADEL_CACHES_CONNECTORS_REDIS_ENABLED=true
+ZITADEL_CACHES_CONNECTORS_REDIS_ADDR=redis:6379
+ZITADEL_CACHES_INSTANCE_CONNECTOR=redis
+ZITADEL_CACHES_MILESTONES_CONNECTOR=redis
+ZITADEL_CACHES_ORGANIZATION_CONNECTOR=redis
+```
+
+Restart ZITADEL:
+```bash
+docker compose restart zitadel-api
+```
+
+### OpenTelemetry Observability
+
+Enable tracing with OpenTelemetry:
+
+```bash
+curl -o otel-collector-config.yaml https://raw.githubusercontent.com/zitadel/zitadel/main/deploy/compose/otel-collector-config.yaml
+
+docker compose --profile observability up -d otel-collector
+```
+
+Update `.env`:
+```bash .env
+ZITADEL_INSTRUMENTATION_SERVICENAME=zitadel-api
+ZITADEL_INSTRUMENTATION_TRACE_EXPORTER_TYPE=grpc
+ZITADEL_INSTRUMENTATION_TRACE_EXPORTER_ENDPOINT=otel-collector:4317
+ZITADEL_INSTRUMENTATION_TRACE_EXPORTER_INSECURE=true
+```
+
+Restart ZITADEL:
+```bash
+docker compose restart zitadel-api
+```
+
+## Common Issues
+
+### Instance Not Found Error
+
+The most common issue is mismatched external domain configuration.
+
+<Warning>
+`ZITADEL_EXTERNALDOMAIN`, `ZITADEL_EXTERNALPORT`, and `ZITADEL_EXTERNALSECURE` must exactly match the URL users access in their browser.
+</Warning>
+
+If users access `https://auth.example.com:443`, configure:
+```bash .env
+ZITADEL_DOMAIN=auth.example.com
+ZITADEL_EXTERNALPORT=443
+ZITADEL_EXTERNALSECURE=true
+```
+
+If users access `http://localhost:8080`, configure:
+```bash .env
+ZITADEL_DOMAIN=localhost
+ZITADEL_EXTERNALPORT=8080
+ZITADEL_EXTERNALSECURE=false
+```
+
+### Database Connection Issues
+
+Check PostgreSQL health:
+```bash
+docker compose ps postgres
+docker compose logs postgres
+```
+
+Verify database credentials in `.env`:
+```bash .env
+POSTGRES_DB=zitadel
+POSTGRES_ADMIN_USER=postgres
+POSTGRES_ADMIN_PASSWORD=postgres
+POSTGRES_ZITADEL_USER=zitadel
+POSTGRES_ZITADEL_PASSWORD=zitadel
+```
+
+## Upgrading
+
+<Steps>
+
+<Step title="Update image version">
+
+Edit `.env`:
+```bash .env
+ZITADEL_VERSION=v4.11.0
+```
+
+</Step>
+
+<Step title="Pull new images">
+
+```bash
+docker compose pull
+```
+
+</Step>
+
+<Step title="Restart services">
+
+```bash
+docker compose up -d --wait
+```
+
+ZITADEL automatically applies database migrations on startup.
+
+</Step>
+
+</Steps>
+
+## Maintenance
+
+### View Logs
+
+```bash
+# All services
+docker compose logs -f
+
+# Specific service
+docker compose logs -f zitadel-api
+```
+
+### Backup Database
+
+```bash
+docker compose exec postgres pg_dump -U postgres zitadel > backup.sql
+```
+
+### Stop Services
+
+```bash
+# Stop but preserve volumes
+docker compose down
+
+# Stop and remove volumes (data loss!)
+docker compose down -v
+```
+
+## Next Steps
+
+- [Configuration Reference](/deployment/configuration) - Detailed environment variable documentation
+- [Production Best Practices](/deployment/production) - Security and scaling guidance
+- [Kubernetes Deployment](/deployment/kubernetes) - For multi-node production clusters

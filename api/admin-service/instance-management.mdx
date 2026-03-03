@@ -1,0 +1,224 @@
+---
+title: Instance Management
+description: Manage ZITADEL instance details, domains, and configuration
+---
+
+Instance management endpoints allow you to view and configure your ZITADEL instance, including managing domains and viewing instance information.
+
+## Get My Instance
+
+**Deprecated**: Use [Instance Service v2 GetInstance](/api/instance-service-v2/get-instance) instead.
+
+Returns details about the current instance such as name, version, and domains.
+
+### HTTP Request
+
+```
+GET /admin/v1/instances/me
+```
+
+### Permissions
+
+Requires `iam.read` permission.
+
+### Response
+
+<ResponseField name="instance" type="object">
+  Information about the instance.
+  
+  <ResponseField name="id" type="string">
+    Unique identifier of the instance.
+  </ResponseField>
+  
+  <ResponseField name="creation_date" type="timestamp">
+    When the instance was created.
+  </ResponseField>
+  
+  <ResponseField name="change_date" type="timestamp">
+    When the instance was last modified.
+  </ResponseField>
+  
+  <ResponseField name="sequence" type="string">
+    Current sequence number.
+  </ResponseField>
+  
+  <ResponseField name="name" type="string">
+    Display name of the instance.
+  </ResponseField>
+  
+  <ResponseField name="version" type="string">
+    ZITADEL version running.
+  </ResponseField>
+</ResponseField>
+
+### Example Request
+
+```bash
+curl -X GET 'https://api.zitadel.cloud/admin/v1/instances/me' \
+  -H 'Authorization: Bearer <TOKEN>'
+```
+
+### Example Response
+
+```json
+{
+  "instance": {
+    "id": "123456789",
+    "creation_date": "2024-01-01T00:00:00.000Z",
+    "change_date": "2024-03-15T10:00:00.000Z",
+    "sequence": "12345",
+    "name": "My ZITADEL Instance",
+    "version": "2.45.0"
+  }
+}
+```
+
+## List Instance Domains
+
+**Deprecated**: Use [Instance Service v2 GetInstance](/api/instance-service-v2/get-instance) instead.
+
+Returns a list of domains configured for this ZITADEL instance.
+
+### HTTP Request
+
+```
+POST /admin/v1/domains/_search
+```
+
+### Permissions
+
+Requires `iam.read` permission.
+
+### Response
+
+<ResponseField name="result" type="array">
+  List of configured domains.
+  
+  <ResponseField name="domain" type="string">
+    The domain name.
+  </ResponseField>
+  
+  <ResponseField name="is_primary" type="boolean">
+    Whether this is the primary domain.
+  </ResponseField>
+  
+  <ResponseField name="generated" type="boolean">
+    Whether this domain was auto-generated.
+  </ResponseField>
+</ResponseField>
+
+### Example Request
+
+```bash
+curl -X POST 'https://api.zitadel.cloud/admin/v1/domains/_search' \
+  -H 'Authorization: Bearer <TOKEN>' \
+  -H 'Content-Type: application/json' \
+  -d '{}'
+```
+
+## List Trusted Domains
+
+**Deprecated**: Use [Instance Service v2 ListTrustedDomains](/api/instance-service-v2/list-trusted-domains) instead.
+
+Returns domains that are trusted for use as public hosts.
+
+### HTTP Request
+
+```
+POST /admin/v1/trusted_domains/_search
+```
+
+### Permissions
+
+Requires `iam.read` permission.
+
+## Add Trusted Domain
+
+**Deprecated**: Use [Instance Service v2 AddTrustedDomain](/api/instance-service-v2/add-trusted-domain) instead.
+
+Adds a domain to the list of trusted domains.
+
+### HTTP Request
+
+```
+POST /admin/v1/trusted_domains
+```
+
+### Permissions
+
+Requires `iam.write` permission.
+
+### Request Body
+
+<ParamField path="domain" type="string" required>
+  The domain name to add to the trusted list.
+</ParamField>
+
+### Example Request
+
+```bash
+curl -X POST 'https://api.zitadel.cloud/admin/v1/trusted_domains' \
+  -H 'Authorization: Bearer <TOKEN>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "domain": "app.example.com"
+  }'
+```
+
+## Remove Trusted Domain
+
+**Deprecated**: Use [Instance Service v2 RemoveTrustedDomain](/api/instance-service-v2/remove-trusted-domain) instead.
+
+Removes a domain from the list of trusted domains.
+
+### HTTP Request
+
+```
+DELETE /admin/v1/trusted_domains/{domain}
+```
+
+### Permissions
+
+Requires `iam.write` permission.
+
+### Path Parameters
+
+<ParamField path="domain" type="string" required>
+  The domain name to remove.
+</ParamField>
+
+### Example Request
+
+```bash
+curl -X DELETE 'https://api.zitadel.cloud/admin/v1/trusted_domains/app.example.com' \
+  -H 'Authorization: Bearer <TOKEN>'
+```
+
+## Health Check
+
+Checks if the ZITADEL system API is alive.
+
+### HTTP Request
+
+```
+GET /admin/v1/healthz
+```
+
+### No Authentication Required
+
+### Response
+
+Returns 200 as soon as ZITADEL is running.
+
+### Example Request
+
+```bash
+curl -X GET 'https://api.zitadel.cloud/admin/v1/healthz'
+```
+
+## Notes
+
+- Instance domains are the URLs where ZITADEL is accessible
+- Trusted domains can be used as public hosts in your applications
+- The primary domain is used for default redirects and email links
+- Use the v2 Instance Service API for new implementations

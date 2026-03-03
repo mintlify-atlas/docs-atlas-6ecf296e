@@ -1,0 +1,541 @@
+---
+title: Multi-Factor Authentication (MFA)
+description: Configure and enforce multi-factor authentication in ZITADEL to add an extra layer of security to user accounts with OTP, SMS, Email, and U2F methods.
+---
+
+Multi-Factor Authentication (MFA) adds an additional layer of security by requiring users to provide two or more verification factors to access their accounts. ZITADEL supports multiple MFA methods including OTP, U2F, SMS, and email-based verification.
+
+## MFA Methods
+
+ZITADEL supports the following multi-factor authentication methods:
+
+### Time-based One-Time Password (TOTP)
+
+TOTP generates time-based codes using authenticator apps like:
+- Google Authenticator
+- Microsoft Authenticator
+- Authy
+- 1Password
+- Any RFC 6238-compliant authenticator
+
+**Security Level**: Second Factor
+
+**Implementation**: RFC 6238 standard TOTP algorithm
+
+### Universal 2nd Factor (U2F)
+
+Hardware security keys using the FIDO U2F standard:
+- YubiKey
+- Google Titan Security Key
+- Other FIDO-compliant security keys
+
+**Security Level**: Second Factor or Multi-Factor
+
+**Implementation**: WebAuthn/FIDO2 protocol
+
+### OTP via SMS
+
+One-time passwords delivered via SMS text message to the user's registered phone number.
+
+**Security Level**: Second Factor
+
+**Implementation**: Requires SMS provider configuration (Twilio or custom webhook)
+
+<Warning>
+SMS-based OTP is less secure than TOTP or U2F due to potential SIM swapping attacks. Use for convenience but consider stronger methods for high-security scenarios.
+</Warning>
+
+### OTP via Email
+
+One-time passwords sent to the user's registered email address.
+
+**Security Level**: Second Factor
+
+**Implementation**: Uses configured SMTP or email provider
+
+## MFA Configuration
+
+### Enabling MFA Methods
+
+Configure which MFA methods are available through the Login Policy.
+
+#### Via Console
+
+<Steps>
+
+<Step title="Navigate to Login Policy">
+Go to Instance/Organization Settings > Login Policy
+</Step>
+
+<Step title="Configure Second Factors">
+In the **Second Factors** section, select available methods:
+- TOTP (Time-based OTP)
+- OTP Email
+- OTP SMS
+</Step>
+
+<Step title="Configure Multi-Factors">
+In the **Multi-Factors** section, add additional factor options:
+- U2F (Universal 2nd Factor)
+</Step>
+
+<Step title="Set MFA Policy">
+Choose MFA enforcement:
+- **Optional**: Users can enable MFA voluntarily
+- **Required**: All users must configure MFA (Force MFA)
+- **Required for Local Only**: Only local accounts require MFA, not federated users
+</Step>
+
+</Steps>
+
+#### Via API
+
+```bash
+# Add TOTP as a second factor
+curl -X POST https://$ZITADEL_DOMAIN/v2/settings/login_policy/second_factors \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "SECOND_FACTOR_TYPE_OTP"
+  }'
+
+# Add U2F as a multi-factor
+curl -X POST https://$ZITADEL_DOMAIN/v2/settings/login_policy/multi_factors \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "MULTI_FACTOR_TYPE_U2F"
+  }'
+
+# Enable Force MFA
+curl -X PUT https://$ZITADEL_DOMAIN/v2/settings/login_policy \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "forceMfa": true
+  }'
+```
+
+### MFA Enforcement Modes
+
+**ForceMFA**: When enabled, all users must configure at least one MFA method before they can complete authentication.
+
+**ForceMFALocalOnly**: When enabled, only users authenticating with local credentials (username/password) must use MFA. Users authenticating via external identity providers are exempt.
+
+```go
+// From internal/domain/policy_login.go
+type LoginPolicy struct {
+    ForceMFA          bool
+    ForceMFALocalOnly bool
+    SecondFactors     []SecondFactorType
+    MultiFactors      []MultiFactorType
+    // ...
+}
+```
+
+## Setting Up MFA Methods
+
+### TOTP Setup
+
+<Steps>
+
+<Step title="User Initiates Setup">
+User navigates to account settings and selects "Add Authenticator App"
+</Step>
+
+<Step title="QR Code Generation">
+ZITADEL generates a QR code containing the TOTP secret
+</Step>
+
+<Step title="Scan with Authenticator">
+User scans the QR code with their authenticator app
+</Step>
+
+<Step title="Verify Setup">
+User enters the current TOTP code to verify the setup is working
+</Step>
+
+<Step title="Save Recovery Codes">
+ZITADEL provides recovery codes for account recovery if the device is lost
+</Step>
+
+</Steps>
+
+#### TOTP Configuration
+
+The TOTP configuration is managed through MultifactorConfigs:
+
+```go
+// From internal/domain/mfa.go
+type MultifactorConfigs struct {
+    OTP           OTPConfig
+    RecoveryCodes RecoveryCodesConfig
+}
+
+type OTPConfig struct {
+    Issuer    string  // Displayed in authenticator app
+    CryptoMFA crypto.EncryptionAlgorithm
+}
+```
+
+### U2F/WebAuthn Setup
+
+<Steps>
+
+<Step title="User Initiates Registration">
+User selects "Add Security Key" in account settings
+</Step>
+
+<Step title="Insert Security Key">
+User inserts their U2F security key or prepares their device authenticator
+</Step>
+
+<Step title="Trigger Registration">
+Browser prompts for user interaction (touch security key button)
+</Step>
+
+<Step title="Complete Registration">
+ZITADEL stores the public key and associates it with the user account
+</Step>
+
+<Step title="Name the Key">
+User provides a friendly name for the security key (e.g., "YubiKey 5C")
+</Step>
+
+</Steps>
+
+### OTP SMS Setup
+
+<Steps>
+
+<Step title="Configure SMS Provider">
+First, configure an SMS provider in ZITADEL (Twilio or custom webhook)
+</Step>
+
+<Step title="User Adds Phone Number">
+User enters their phone number in account settings
+</Step>
+
+<Step title="Verify Phone Number">
+ZITADEL sends a verification code via SMS
+</Step>
+
+<Step title="Complete Verification">
+User enters the code to verify phone ownership
+</Step>
+
+<Step title="Enable OTP SMS">
+OTP SMS is now available as an MFA method for the user
+</Step>
+
+</Steps>
+
+#### API Setup
+
+```bash
+# Add OTP SMS to a user
+curl -X POST https://$ZITADEL_DOMAIN/v2/users/{userId}/otp_sms \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json"
+
+# Remove OTP SMS
+curl -X DELETE https://$ZITADEL_DOMAIN/v2/users/{userId}/otp_sms \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+### OTP Email Setup
+
+<Steps>
+
+<Step title="Verify Email Address">
+User must have a verified email address on their account
+</Step>
+
+<Step title="Enable OTP Email">
+User enables OTP Email in account security settings
+</Step>
+
+<Step title="Test Delivery">
+ZITADEL sends a test code to verify email delivery
+</Step>
+
+<Step title="Complete Setup">
+User enters the test code to confirm setup
+</Step>
+
+</Steps>
+
+#### API Setup
+
+```bash
+# Add OTP Email to a user
+curl -X POST https://$ZITADEL_DOMAIN/v2/users/{userId}/otp_email \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json"
+
+# Remove OTP Email
+curl -X DELETE https://$ZITADEL_DOMAIN/v2/users/{userId}/otp_email \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+## MFA Authentication Flow
+
+When MFA is required, the authentication flow includes an additional verification step:
+
+<Steps>
+
+<Step title="Primary Authentication">
+User provides primary credentials (username/password or passkey)
+</Step>
+
+<Step title="MFA Challenge">
+ZITADEL prompts for second factor based on user's registered methods
+</Step>
+
+<Step title="User Selects Method">
+If multiple MFA methods are registered, user chooses which one to use
+</Step>
+
+<Step title="Provide Second Factor">
+User provides the second factor (TOTP code, U2F key, SMS code, etc.)
+</Step>
+
+<Step title="Verification">
+ZITADEL verifies the second factor
+</Step>
+
+<Step title="Session Creation">
+Successful MFA grants access and creates an authenticated session
+</Step>
+
+</Steps>
+
+### MFA State Management
+
+```go
+// From internal/domain/mfa.go
+type MFAState int32
+
+const (
+    MFAStateUnspecified MFAState = iota
+    MFAStateNotReady    // MFA setup initiated but not completed
+    MFAStateReady       // MFA fully configured and active
+    MFAStateRemoved     // MFA was removed from account
+)
+```
+
+## Recovery Codes
+
+Recovery codes provide a backup authentication method if users lose access to their MFA devices.
+
+### Generating Recovery Codes
+
+When users enable MFA, ZITADEL generates a set of single-use recovery codes.
+
+```go
+// From internal/domain/mfa.go
+type RecoveryCodesConfig struct {
+    MaxCount   int                // Number of codes to generate
+    Format     RecoveryCodeFormat // Format of codes
+    Length     int                // Length of each code
+    WithHyphen bool               // Include hyphens for readability
+}
+
+const (
+    RecoveryCodeFormatUUID         RecoveryCodeFormat = "uuid"
+    RecoveryCodeFormatAlphanumeric RecoveryCodeFormat = "alphanumeric"
+)
+```
+
+### Using Recovery Codes
+
+<Steps>
+
+<Step title="Select Recovery Option">
+During MFA prompt, user selects "Use recovery code" option
+</Step>
+
+<Step title="Enter Code">
+User enters one of their saved recovery codes
+</Step>
+
+<Step title="Code Validation">
+ZITADEL validates and invalidates the used recovery code
+</Step>
+
+<Step title="Access Granted">
+User gains access and should set up MFA again or generate new recovery codes
+</Step>
+
+</Steps>
+
+<Warning>
+Recovery codes are single-use. Once all recovery codes are consumed, users must generate new ones or risk account lockout if they lose their MFA device.
+</Warning>
+
+## MFA Lifetime Settings
+
+Control how long MFA verification remains valid:
+
+### Second Factor Check Lifetime
+
+```bash
+curl -X PUT https://$ZITADEL_DOMAIN/v2/settings/login_policy \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "secondFactorCheckLifetime": "43200s"  // 12 hours
+  }'
+```
+
+### Multi-Factor Check Lifetime
+
+```bash
+curl -X PUT https://$ZITADEL_DOMAIN/v2/settings/login_policy \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "multiFactorCheckLifetime": "43200s"  // 12 hours
+  }'
+```
+
+### MFA Init Skip Lifetime
+
+Allow users to skip MFA setup for a period:
+
+```bash
+curl -X PUT https://$ZITADEL_DOMAIN/v2/settings/login_policy \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mfaInitSkipLifetime": "2592000s"  // 30 days
+  }'
+```
+
+## Best Practices
+
+<Note>
+**Enforce MFA for Sensitive Operations**: Always require MFA for privileged accounts (administrators, service accounts with elevated permissions).
+</Note>
+
+<Note>
+**Provide Multiple Options**: Enable multiple MFA methods to accommodate different user preferences and scenarios.
+</Note>
+
+<Note>
+**Educate Users**: Provide clear instructions and support documentation for MFA setup and usage.
+</Note>
+
+<Note>
+**Recovery Planning**: Ensure users save recovery codes and understand the recovery process before they need it.
+</Note>
+
+<Warning>
+**SMS Limitations**: While convenient, SMS-based OTP is vulnerable to SIM swapping. For high-security applications, prefer TOTP or U2F.
+</Warning>
+
+## SMS Provider Configuration
+
+To use OTP SMS, configure an SMS provider:
+
+### Twilio Configuration
+
+```yaml
+Notifications:
+  Providers:
+    Twilio:
+      SID: "your-twilio-account-sid"
+      Token: "your-twilio-auth-token"
+      SenderNumber: "+1234567890"
+```
+
+### Custom SMS Webhook
+
+Alternatively, configure a custom webhook for SMS delivery:
+
+```yaml
+Notifications:
+  Providers:
+    Webhook:
+      Enabled: true
+      URL: "https://your-sms-provider.com/send"
+      Headers:
+        Authorization: "Bearer your-token"
+```
+
+## Troubleshooting
+
+### MFA Setup Fails
+
+**Check time synchronization**: TOTP requires accurate system time (use NTP)
+
+**Verify QR code**: Ensure the QR code is scanned correctly
+
+**Browser compatibility**: Confirm WebAuthn support for U2F setup
+
+### MFA Verification Fails
+
+**Time drift**: TOTP codes expire every 30 seconds; ensure timely entry
+
+**Used recovery code**: Recovery codes are single-use only
+
+**SMS not received**: Check SMS provider configuration and phone number validity
+
+**U2F timeout**: User must interact with security key within the timeout period
+
+### Account Lockout
+
+**Use recovery codes**: Enter a saved recovery code to regain access
+
+**Administrator intervention**: Admins can disable MFA for locked-out users
+
+**Account recovery flow**: Implement proper account recovery procedures
+
+## API Reference
+
+Key MFA-related API endpoints:
+
+### Add TOTP
+
+```
+POST /v2/users/{userId}/totp
+```
+
+### Verify TOTP
+
+```
+POST /v2/users/{userId}/totp/verify
+```
+
+### Add OTP SMS
+
+```
+POST /v2/users/{userId}/otp_sms
+```
+
+### Add OTP Email
+
+```
+POST /v2/users/{userId}/otp_email
+```
+
+### Register U2F Token
+
+```
+POST /v2/users/{userId}/u2f
+```
+
+### List User's MFA Methods
+
+```
+GET /v2/users/{userId}/authentication_methods
+```
+
+See the [User Service API](/apis/resources/user_service) for complete documentation.
+
+## Related Documentation
+
+- [Login Policy Configuration](/guides/manage/console/default-settings)
+- [Session API](/apis/resources/user_service/session-service)
+- [Notification Providers](/self-hosting/manage/production#notifications)
+- [Passkeys Documentation](/authentication/passkeys)

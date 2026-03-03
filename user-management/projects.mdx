@@ -1,0 +1,399 @@
+---
+title: "Projects"
+description: "Group applications and manage authorization with ZITADEL projects"
+---
+
+Projects are the organizational unit for applications and roles in ZITADEL. They group related applications together and define the roles that can be assigned to users for authorization.
+
+## What is a Project?
+
+A project is a container that:
+
+- **Groups Applications**: Web apps, mobile apps, APIs, and services that share a common purpose
+- **Defines Roles**: Custom roles that users can be assigned for authorization
+- **Manages Access**: Controls which organizations can access the project through project grants
+- **Configures Policies**: Sets authentication and authorization requirements
+
+Every project belongs to exactly one organization (the owner), but can be granted to multiple other organizations.
+
+## Project Properties
+
+Each project has the following configuration:
+
+### Basic Settings
+
+- **Name**: Human-readable name displayed to users during sign-in
+- **Organization ID**: The organization that owns the project
+- **State**: Active or inactive
+
+### Authorization Settings
+
+<AccordionGroup>
+  <Accordion title="Project Role Assertion">
+    When enabled, user roles are included in:
+    - ID tokens
+    - Access tokens
+    - Userinfo endpoint responses
+
+    This makes roles available to your application without additional API calls.
+  </Accordion>
+
+  <Accordion title="Authorization Required">
+    When enabled, ZITADEL checks if the user has at least one role assigned in this project before allowing login.
+
+    Use this to ensure only authorized users can access applications in the project.
+  </Accordion>
+
+  <Accordion title="Project Access Required">
+    When enabled, ZITADEL verifies that the user's organization either:
+    - Owns the project, OR
+    - Has been granted access via a project grant
+
+    Use this for multi-tenant applications where you want to control organization-level access.
+  </Accordion>
+</AccordionGroup>
+
+### Private Labeling Setting
+
+Controls which branding is applied during login:
+
+- **Enforce Project Resource Owner Policy**: Always use the project owner's branding
+- **Allow Login User Resource Owner Policy**: Use the logging-in user's organization branding
+
+## Creating Projects
+
+Create projects through the Console or API.
+
+### Via Console
+
+1. Navigate to your **Organization**
+2. Go to **Projects**
+3. Click **New Project**
+4. Enter the project name
+5. Configure authorization settings
+6. Click **Save**
+
+### Via API
+
+```javascript
+const response = await projectService.createProject({
+  organizationId: "69629026806489455",
+  name: "Customer Portal",
+  projectRoleAssertion: true,
+  authorizationRequired: true,
+  projectAccessRequired: false,
+  privateLabelingSetting: "PRIVATE_LABELING_SETTING_ALLOW_LOGIN_USER_RESOURCE_OWNER_POLICY"
+});
+
+const projectId = response.projectId;
+```
+
+## Project Roles
+
+Roles define what users can do within your applications. They are custom-defined and specific to each project.
+
+### Role Properties
+
+- **Role Key**: Unique identifier used in authorization checks (e.g., `"admin", "viewer", "editor"`)
+- **Display Name**: Human-readable name shown in the UI
+- **Group**: Optional grouping for organizing roles in the UI
+
+### Creating Roles
+
+```javascript
+await projectService.addProjectRole({
+  projectId: "69629026806489455",
+  roleKey: "admin",
+  displayName: "Administrator",
+  group: "Management"
+});
+
+await projectService.addProjectRole({
+  projectId: "69629026806489455",
+  roleKey: "viewer",
+  displayName: "Viewer",
+  group: "General"
+});
+```
+
+### Role Keys in Tokens
+
+When `projectRoleAssertion` is enabled, roles appear in tokens:
+
+```json
+{
+  "urn:zitadel:iam:org:project:69629026806489455:roles": {
+    "admin": {
+      "69629023906488334": "Acme Corporation"
+    },
+    "viewer": {
+      "69629023906488334": "Acme Corporation"
+    }
+  }
+}
+```
+
+The structure shows:
+- Which roles the user has
+- In which organizations they have those roles
+
+### Managing Roles
+
+Update a role's display name or group:
+
+```javascript
+await projectService.updateProjectRole({
+  projectId: "69629026806489455",
+  roleKey: "admin",
+  displayName: "System Administrator",
+  group: "Management"
+});
+```
+
+Remove a role:
+
+```javascript
+await projectService.removeProjectRole({
+  projectId: "69629026806489455",
+  roleKey: "viewer"
+});
+```
+
+<Warning>
+Removing a role will:
+- Delete all user grants (role assignments) for this role across all organizations
+- Remove the role from all project grants
+- Affect all applications in the project
+</Warning>
+
+## Project Grants
+
+Project grants enable multi-tenant access by allowing other organizations to use your project.
+
+### How Project Grants Work
+
+1. **Owner Organization** creates a project with roles and applications
+2. **Owner** grants the project to another organization, specifying which roles are available
+3. **Granted Organization** can assign those roles to its own users
+4. Users from the granted organization can access applications in the project
+
+### Use Cases
+
+<CardGroup cols={2}>
+  <Card title="SaaS Multi-Tenancy" icon="cloud">
+    You own a project with your SaaS application. Grant it to customer organizations so they can manage access for their users.
+  </Card>
+  <Card title="Partner Access" icon="handshake">
+    Grant your project to partner organizations, giving them specific roles like `partner_viewer` or `reseller_admin`.
+  </Card>
+  <Card title="Shared Services" icon="share-nodes">
+    IT department owns a project with internal tools. Grant it to other departments with appropriate roles.
+  </Card>
+  <Card title="Customer Self-Service" icon="users-gear">
+    Grant your project to customer organizations so they can manage their own team's access and permissions.
+  </Card>
+</CardGroup>
+
+### Creating Project Grants
+
+```javascript
+await projectService.createProjectGrant({
+  projectId: "69629026806489455",
+  grantedOrganizationId: "28746028909593987",
+  roleKeys: ["viewer", "editor"] // Only these roles available to granted org
+});
+```
+
+Now, users in organization `28746028909593987` can be assigned the `viewer` or `editor` roles for this project.
+
+### Updating Project Grants
+
+Change which roles are available:
+
+```javascript
+await projectService.updateProjectGrant({
+  projectId: "69629026806489455",
+  grantedOrganizationId: "28746028909593987",
+  roleKeys: ["viewer"] // Removed editor role
+});
+```
+
+<Note>
+Removing a role from a project grant will remove all user grants for that role in the granted organization.
+</Note>
+
+### Deactivating Project Grants
+
+Temporarily disable access for a granted organization:
+
+```javascript
+await projectService.deactivateProjectGrant({
+  projectId: "69629026806489455",
+  grantedOrganizationId: "28746028909593987"
+});
+```
+
+Users from that organization can no longer log in to applications in the project.
+
+### Deleting Project Grants
+
+```javascript
+await projectService.deleteProjectGrant({
+  projectId: "69629026806489455",
+  grantedOrganizationId: "28746028909593987"
+});
+```
+
+## Project States
+
+### Active
+
+- Applications can authenticate users
+- Users can be assigned roles
+- Normal operation
+
+### Inactive
+
+Deactivate a project to temporarily disable all access:
+
+```javascript
+await projectService.deactivateProject({
+  projectId: "69629026806489455"
+});
+```
+
+When inactive:
+- Users cannot log in to any application in the project
+- Existing tokens may still be valid until expiration
+- Project configuration and roles are preserved
+
+Reactivate when ready:
+
+```javascript
+await projectService.activateProject({
+  projectId: "69629026806489455"
+});
+```
+
+## Listing and Searching Projects
+
+Find projects across organizations:
+
+```javascript
+const projects = await projectService.listProjects({
+  pagination: {
+    limit: 50,
+    offset: 0
+  },
+  sortingColumn: "PROJECT_FIELD_NAME_NAME",
+  filters: [
+    {
+      organizationIdFilter: {
+        organizationId: "69629026806489455",
+        type: "OWNED_OR_GRANTED" // Search owned and granted projects
+      }
+    }
+  ]
+});
+```
+
+Filter options:
+- `OWNED`: Projects owned by the organization
+- `GRANTED`: Projects granted to the organization
+- `OWNED_OR_GRANTED`: Both owned and granted projects
+
+Search by name:
+
+```javascript
+filters: [
+  {
+    projectNameFilter: {
+      projectName: "Portal",
+      method: "TEXT_FILTER_METHOD_CONTAINS"
+    }
+  }
+]
+```
+
+## Deleting Projects
+
+```javascript
+await projectService.deleteProject({
+  projectId: "69629026806489455"
+});
+```
+
+<Warning>
+Deleting a project will:
+- Remove all applications in the project
+- Delete all project roles and user grants
+- Remove all project grants to other organizations
+- This cannot be undone
+
+Consider deactivating instead if you might need the project later.
+</Warning>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Project Structure">
+    - Create one project per product or service
+    - Group related applications within the same project
+    - Keep test and production applications in separate projects
+    - Use meaningful, descriptive project names
+  </Accordion>
+
+  <Accordion title="Role Design">
+    - Define granular roles based on actual permissions (not job titles)
+    - Use consistent naming across projects: `resource:action` (e.g., `users:write`, `reports:read`)
+    - Document what each role can do
+    - Start with fewer roles and add more as needed
+    - Use the group field to organize related roles
+  </Accordion>
+
+  <Accordion title="Authorization Strategy">
+    - Enable `projectRoleAssertion` if your app uses roles for authorization
+    - Enable `authorizationRequired` to prevent unauthorized access
+    - Enable `projectAccessRequired` for multi-tenant SaaS applications
+    - Implement role-based access control (RBAC) in your application
+  </Accordion>
+
+  <Accordion title="Project Grants">
+    - Grant only the roles that the organization needs
+    - Regularly review active grants
+    - Deactivate grants instead of deleting when temporarily removing access
+    - Document which organizations have access and why
+    - Audit project grant changes for security
+  </Accordion>
+
+  <Accordion title="Lifecycle Management">
+    - Deactivate projects instead of deleting when sunsetting features
+    - Use project states to manage deployments and maintenance
+    - Keep project configurations in version control
+    - Test authorization settings before enabling `authorizationRequired`
+  </Accordion>
+</AccordionGroup>
+
+## Project vs Organization Roles
+
+| Aspect | Project Roles | Organization Roles |
+|--------|---------------|--------------------|
+| **Purpose** | Control access to applications and resources | Control administrative access to the organization |
+| **Defined By** | You create custom roles | ZITADEL provides predefined roles |
+| **Assigned By** | Organization admins or project owners | Instance/organization admins |
+| **Scope** | Specific to one project | Entire organization |
+| **Example** | `editor`, `viewer`, `admin` | `ORG_OWNER`, `ORG_USER_MANAGER` |
+
+## Related Concepts
+
+<CardGroup cols={3}>
+  <Card title="Users" icon="user" href="/user-management/users">
+    Users are assigned project roles through user grants
+  </Card>
+  <Card title="Organizations" icon="building" href="/user-management/organizations">
+    Projects are owned by organizations and granted to others
+  </Card>
+  <Card title="Roles" icon="shield" href="/user-management/roles">
+    Detailed explanation of role assignment and authorization
+  </Card>
+</CardGroup>

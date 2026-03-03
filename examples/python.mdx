@@ -1,0 +1,383 @@
+---
+title: Python Example
+description: Integrate ZITADEL authentication into Python applications using Flask, Django, and FastAPI.
+---
+
+# Python Example
+
+Learn how to integrate ZITADEL authentication into Python web applications and use the Management API for programmatic user management.
+
+## Overview
+
+This guide covers integration with popular Python frameworks:
+
+1. **Flask**: Lightweight web framework
+2. **Django**: Full-featured web framework
+3. **FastAPI**: Modern API framework
+4. **Management API**: Programmatic user and resource management
+
+## Flask Integration
+
+### Install Dependencies
+
+```bash
+pip install flask authlib requests
+```
+
+### Basic Flask App with OIDC
+
+```python
+from flask import Flask, redirect, url_for, session, render_template_string
+from authlib.integrations.flask_client import OAuth
+import os
+
+app = Flask(__name__)
+app.secret_key = os.getenv('SESSION_SECRET')
+
+# Configure OAuth
+oauth = OAuth(app)
+zitadel = oauth.register(
+    'zitadel',
+    client_id=os.getenv('ZITADEL_CLIENT_ID'),
+    client_secret=os.getenv('ZITADEL_CLIENT_SECRET'),
+    server_metadata_url=f"{os.getenv('ZITADEL_DOMAIN')}/.well-known/openid-configuration",
+    client_kwargs={
+        'scope': 'openid profile email',
+        'code_challenge_method': 'S256'  # PKCE
+    }
+)
+
+@app.route('/')
+def home():
+    user = session.get('user')
+    if user:
+        return f'''
+            <h1>Welcome, {user.get("name")}!</h1>
+            <p>Email: {user.get("email")}</p>
+            <a href="/logout">Logout</a>
+        '''
+    return '<a href="/login">Login with ZITADEL</a>'
+
+@app.route('/login')
+def login():
+    redirect_uri = url_for('callback', _external=True)
+    return zitadel.authorize_redirect(redirect_uri)
+
+@app.route('/auth/callback')
+def callback():
+    token = zitadel.authorize_access_token()
+    user_info = token.get('userinfo')
+    session['user'] = user_info
+    return redirect('/')
+
+@app.route('/logout')
+def logout():
+    session.pop('user', None)
+    return redirect('/')
+
+@app.route('/profile')
+def profile():
+    user = session.get('user')
+    if not user:
+        return redirect('/login')
+    
+    return render_template_string('''
+        <h1>Profile</h1>
+        <p><strong>Name:</strong> {{ user.name }}</p>
+        <p><strong>Email:</strong> {{ user.email }}</p>
+        <p><strong>User ID:</strong> {{ user.sub }}</p>
+        <a href="/">Home</a>
+    ''', user=user)
+
+if __name__ == '__main__':
+    app.run(port=3000, debug=True)
+```
+
+### Protected Routes in Flask
+
+```python
+from functools import wraps
+from flask import session, redirect
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user' not in session:
+            return redirect('/login')
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route('/admin')
+@login_required
+def admin():
+    user = session.get('user')
+    roles = user.get('urn:zitadel:iam:org:project:roles', {})
+    
+    if 'admin' not in roles:
+        return 'Access denied', 403
+    
+    return '<h1>Admin Dashboard</h1>'
+```
+
+## Django Integration
+
+### Install Dependencies
+
+```bash
+pip install django mozilla-django-oidc
+```
+
+### Configure Django Settings
+
+Add to `settings.py`:
+
+```python
+INSTALLED_APPS = [
+    # ...
+    'mozilla_django_oidc',
+]
+
+MIDDLEWARE = [
+    # ...
+    'mozilla_django_oidc.middleware.SessionRefresh',
+]
+
+AUTHENTICATION_BACKENDS = (
+    'mozilla_django_oidc.auth.OIDCAuthenticationBackend',
+    'django.contrib.auth.backends.ModelBackend',
+)
+
+# OIDC Configuration
+OIDC_RP_CLIENT_ID = os.getenv('ZITADEL_CLIENT_ID')
+OIDC_RP_CLIENT_SECRET = os.getenv('ZITADEL_CLIENT_SECRET')
+OIDC_OP_AUTHORIZATION_ENDPOINT = f"{os.getenv('ZITADEL_DOMAIN')}/oauth/v2/authorize"
+OIDC_OP_TOKEN_ENDPOINT = f"{os.getenv('ZITADEL_DOMAIN')}/oauth/v2/token"
+OIDC_OP_USER_ENDPOINT = f"{os.getenv('ZITADEL_DOMAIN')}/oidc/v1/userinfo"
+OIDC_OP_JWKS_ENDPOINT = f"{os.getenv('ZITADEL_DOMAIN')}/oauth/v2/keys"
+
+OIDC_RP_SIGN_ALGO = 'RS256'
+OIDC_RP_SCOPES = 'openid profile email'
+
+LOGIN_REDIRECT_URL = '/profile'
+LOGOUT_REDIRECT_URL = '/'
+```
+
+### Django URLs
+
+Add to `urls.py`:
+
+```python
+from django.urls import path, include
+from django.contrib.auth.decorators import login_required
+from . import views
+
+urlpatterns = [
+    path('', views.home, name='home'),
+    path('profile/', login_required(views.profile), name='profile'),
+    path('oidc/', include('mozilla_django_oidc.urls')),
+]
+```
+
+### Django Views
+
+```python
+from django.shortcuts import render
+from django.contrib.auth.decorators import login_required
+
+def home(request):
+    return render(request, 'home.html', {
+        'user': request.user if request.user.is_authenticated else None
+    })
+
+@login_required
+def profile(request):
+    return render(request, 'profile.html', {
+        'user': request.user,
+        'email': request.user.email,
+    })
+```
+
+## FastAPI Integration
+
+### Install Dependencies
+
+```bash
+pip install fastapi uvicorn python-jose[cryptography] python-multipart requests
+```
+
+### FastAPI App with JWT Validation
+
+```python
+from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from jose import jwt, JWTError
+import requests
+import os
+
+app = FastAPI()
+security = HTTPBearer()
+
+# Fetch JWKS
+def get_jwks():
+    response = requests.get(f"{os.getenv('ZITADEL_DOMAIN')}/oauth/v2/keys")
+    return response.json()
+
+jwks = get_jwks()
+
+async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
+    
+    try:
+        # Decode and verify JWT
+        payload = jwt.decode(
+            token,
+            jwks,
+            algorithms=['RS256'],
+            audience=os.getenv('ZITADEL_CLIENT_ID'),
+            issuer=os.getenv('ZITADEL_DOMAIN')
+        )
+        return payload
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+@app.get("/api/public")
+def public_endpoint():
+    return {"message": "Public endpoint - no authentication required"}
+
+@app.get("/api/protected")
+def protected_endpoint(token_data: dict = Depends(verify_token)):
+    return {
+        "message": "Protected endpoint",
+        "user_id": token_data.get("sub"),
+        "email": token_data.get("email")
+    }
+
+@app.get("/api/admin")
+def admin_endpoint(token_data: dict = Depends(verify_token)):
+    roles = token_data.get("urn:zitadel:iam:org:project:roles", {})
+    
+    if "admin" not in roles:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    return {"message": "Admin endpoint"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+```
+
+## Using the Python Management API Client
+
+### Install the SDK
+
+```bash
+pip install --pre zitadel-client
+```
+
+### Create and Manage Users
+
+```python
+import zitadel_client as zitadel
+from zitadel_client.exceptions import ApiError
+from zitadel_client.models import (
+    UserServiceAddHumanUserRequest,
+    UserServiceSetHumanEmail,
+    UserServiceSetHumanProfile,
+)
+
+# Initialize client with service account
+client = zitadel.Zitadel.with_private_key(
+    "https://your-instance.zitadel.cloud",
+    "path/to/service-account-key.json"
+)
+
+# Create a user
+def create_user(username, email, first_name, last_name):
+    try:
+        request = UserServiceAddHumanUserRequest(
+            username=username,
+            profile=UserServiceSetHumanProfile(
+                givenName=first_name,
+                familyName=last_name
+            ),
+            email=UserServiceSetHumanEmail(
+                email=email
+            ),
+        )
+        response = client.users.add_human_user(request)
+        print(f"User created with ID: {response.user_id}")
+        return response.user_id
+    except ApiError as e:
+        print(f"Error creating user: {e}")
+        return None
+
+# Get user information
+def get_user(user_id):
+    try:
+        user = client.users.get_user(user_id=user_id)
+        if user.user.human:
+            profile = user.user.human.profile
+            print(f"Name: {profile.given_name} {profile.family_name}")
+            print(f"Email: {user.user.human.email.email}")
+        return user
+    except ApiError as e:
+        print(f"Error: {e}")
+        return None
+
+# List all users
+def list_all_users():
+    try:
+        users = client.users.list_users(limit=100, offset=0)
+        for user in users.result:
+            print(f"User: {user.user_name} (ID: {user.id})")
+        return users.result
+    except ApiError as e:
+        print(f"Error: {e}")
+        return []
+
+if __name__ == "__main__":
+    # Example usage
+    user_id = create_user(
+        username="alice@example.com",
+        email="alice@example.com",
+        first_name="Alice",
+        last_name="Smith"
+    )
+    
+    if user_id:
+        get_user(user_id)
+```
+
+## Environment Variables
+
+Create a `.env` file:
+
+```env
+# OIDC Configuration
+SESSION_SECRET=your-session-secret
+ZITADEL_DOMAIN=https://your-instance.zitadel.cloud
+ZITADEL_CLIENT_ID=your-client-id
+ZITADEL_CLIENT_SECRET=your-client-secret
+
+# Management API (if using SDK)
+ZITADEL_SERVICE_ACCOUNT_KEY_PATH=./service-account-key.json
+```
+
+## Resources
+
+- [Flask Documentation](https://flask.palletsprojects.com/)
+- [Django Documentation](https://docs.djangoproject.com/)
+- [FastAPI Documentation](https://fastapi.tiangolo.com/)
+- [Python SDK Documentation](/sdks/python)
+- [Authlib Documentation](https://docs.authlib.org/)
+- [mozilla-django-oidc](https://github.com/mozilla/mozilla-django-oidc)
+
+## Next Steps
+
+- [Learn about the Python SDK](/sdks/python)
+- [Explore OIDC integration](/integration/oidc)
+- [Read the API documentation](/api/overview)

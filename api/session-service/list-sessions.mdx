@@ -1,0 +1,267 @@
+---
+title: List Sessions
+description: Search for sessions matching specified criteria
+---
+
+Searches for sessions matching the given query. You can search by session ID, user ID, creation date, creator, user agent, or expiration date.
+
+## HTTP Request
+
+```
+POST /v2/sessions/search
+```
+
+## Permissions
+
+Requires `session.read` permission, or no permission if searching for your own sessions.
+
+## Request Body
+
+<ParamField path="query" type="object">
+  List limitations and ordering.
+  
+  <ParamField path="offset" type="integer">
+    Number of results to skip.
+  </ParamField>
+  
+  <ParamField path="limit" type="integer">
+    Maximum number of results to return.
+  </ParamField>
+  
+  <ParamField path="asc" type="boolean">
+    Sort order: true for ascending, false for descending.
+  </ParamField>
+</ParamField>
+
+<ParamField path="queries" type="array">
+  Array of search criteria. Multiple queries are combined with AND logic.
+  
+  <ParamField path="ids_query" type="object">
+    Search for sessions with specific IDs.
+    
+    <ParamField path="ids" type="array">
+      List of session IDs to search for.
+    </ParamField>
+  </ParamField>
+  
+  <ParamField path="user_id_query" type="object">
+    Search for sessions of a specific user.
+    
+    <ParamField path="id" type="string">
+      ID of the user whose sessions to find.
+    </ParamField>
+  </ParamField>
+  
+  <ParamField path="creation_date_query" type="object">
+    Search based on session creation date.
+    
+    <ParamField path="creation_date" type="timestamp">
+      The date to compare against.
+    </ParamField>
+    
+    <ParamField path="method" type="enum">
+      Comparison method: `EQUALS`, `GREATER_THAN`, `LESS_THAN`.
+    </ParamField>
+  </ParamField>
+  
+  <ParamField path="creator_query" type="object">
+    Search for sessions created by a specific user.
+    
+    <ParamField path="id" type="string">
+      ID of the creator. If empty, uses the calling user's ID.
+    </ParamField>
+  </ParamField>
+  
+  <ParamField path="user_agent_query" type="object">
+    Search based on user agent information.
+    
+    <ParamField path="fingerprint_id" type="string">
+      Fingerprint ID of the user agent. Set empty to use the user agent from the current call.
+    </ParamField>
+  </ParamField>
+  
+  <ParamField path="expiration_date_query" type="object">
+    Search based on session expiration date.
+    
+    <ParamField path="expiration_date" type="timestamp">
+      The date to compare against.
+    </ParamField>
+    
+    <ParamField path="method" type="enum">
+      Comparison method: `EQUALS`, `GREATER_THAN`, `LESS_THAN`.
+    </ParamField>
+  </ParamField>
+</ParamField>
+
+<ParamField path="sorting_column" type="enum">
+  The column to sort by. Options:
+  - `SESSION_FIELD_NAME_CREATION_DATE` (default)
+</ParamField>
+
+## Response
+
+<ResponseField name="details" type="object">
+  Information about the search results.
+  
+  <ResponseField name="total_result" type="integer">
+    Total number of sessions matching the query.
+  </ResponseField>
+  
+  <ResponseField name="processed_sequence" type="string">
+    The sequence number processed.
+  </ResponseField>
+  
+  <ResponseField name="view_timestamp" type="timestamp">
+    Timestamp of the view.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="sessions" type="array">
+  Array of sessions matching the query.
+  
+  <ResponseField name="id" type="string">
+    Unique identifier of the session.
+  </ResponseField>
+  
+  <ResponseField name="creation_date" type="timestamp">
+    When the session was created.
+  </ResponseField>
+  
+  <ResponseField name="change_date" type="timestamp">
+    When the session was last updated.
+  </ResponseField>
+  
+  <ResponseField name="sequence" type="string">
+    The sequence number of the session.
+  </ResponseField>
+  
+  <ResponseField name="factors" type="object">
+    Verification factors that have been checked.
+    
+    <ResponseField name="user" type="object">
+      User verification factor.
+      
+      <ResponseField name="verified_at" type="timestamp">
+        When the user was verified.
+      </ResponseField>
+      
+      <ResponseField name="id" type="string">
+        User ID.
+      </ResponseField>
+      
+      <ResponseField name="login_name" type="string">
+        User's login name.
+      </ResponseField>
+      
+      <ResponseField name="display_name" type="string">
+        User's display name.
+      </ResponseField>
+      
+      <ResponseField name="organization_id" type="string">
+        ID of the organization the user belongs to.
+      </ResponseField>
+    </ResponseField>
+    
+    <ResponseField name="password" type="object">
+      Password verification factor.
+      
+      <ResponseField name="verified_at" type="timestamp">
+        When the password was verified.
+      </ResponseField>
+    </ResponseField>
+    
+    <ResponseField name="web_auth_n" type="object">
+      WebAuthN verification factor.
+      
+      <ResponseField name="verified_at" type="timestamp">
+        When WebAuthN was verified.
+      </ResponseField>
+      
+      <ResponseField name="user_verified" type="boolean">
+        Whether user presence was verified.
+      </ResponseField>
+    </ResponseField>
+  </ResponseField>
+  
+  <ResponseField name="metadata" type="object">
+    Custom metadata stored on the session.
+  </ResponseField>
+  
+  <ResponseField name="user_agent" type="object">
+    Information about the user agent that created the session.
+  </ResponseField>
+  
+  <ResponseField name="expiration_date" type="timestamp">
+    When the session will automatically expire (if set).
+  </ResponseField>
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X POST 'https://api.zitadel.cloud/v2/sessions/search' \
+  -H 'Authorization: Bearer <TOKEN>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "query": {
+      "limit": 10,
+      "asc": false
+    },
+    "queries": [
+      {
+        "user_id_query": {
+          "id": "d654e6ba-70a3-48ef-a95d-37c8d8a7901a"
+        }
+      }
+    ],
+    "sorting_column": "SESSION_FIELD_NAME_CREATION_DATE"
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "details": {
+    "total_result": "3",
+    "processed_sequence": "12345",
+    "view_timestamp": "2024-03-15T10:30:00.000Z"
+  },
+  "sessions": [
+    {
+      "id": "222430354126975533",
+      "creation_date": "2024-03-15T09:00:00.000Z",
+      "change_date": "2024-03-15T09:15:00.000Z",
+      "sequence": "5",
+      "factors": {
+        "user": {
+          "verified_at": "2024-03-15T09:00:00.000Z",
+          "id": "d654e6ba-70a3-48ef-a95d-37c8d8a7901a",
+          "login_name": "user@example.com",
+          "display_name": "John Doe",
+          "organization_id": "69629023906488334"
+        },
+        "password": {
+          "verified_at": "2024-03-15T09:00:00.000Z"
+        },
+        "totp": {
+          "verified_at": "2024-03-15T09:15:00.000Z"
+        }
+      },
+      "metadata": {},
+      "user_agent": {
+        "ip": "192.168.1.100",
+        "description": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+      },
+      "expiration_date": "2024-03-15T17:00:00.000Z"
+    }
+  ]
+}
+```
+
+## Notes
+
+- Multiple queries are combined with AND logic
+- Results are paginated - use `offset` and `limit` for pagination
+- The `details.total_result` field shows the total number of matching sessions
+- Sessions can be filtered by multiple criteria simultaneously

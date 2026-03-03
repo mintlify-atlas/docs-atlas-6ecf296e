@@ -1,0 +1,376 @@
+---
+title: System Settings
+description: Configure system-wide settings for languages, OIDC, and security
+---
+
+System settings endpoints allow you to configure instance-wide settings that affect all organizations and users.
+
+## Language Settings
+
+### Get Supported Languages
+
+Returns all languages supported by the ZITADEL system.
+
+#### HTTP Request
+
+```
+GET /admin/v1/languages
+```
+
+#### Permissions
+
+Requires `authenticated` user.
+
+#### Response
+
+<ResponseField name="languages" type="array">
+  Array of supported language codes (e.g., ["en", "de", "fr"]).
+</ResponseField>
+
+#### Example Request
+
+```bash
+curl -X GET 'https://api.zitadel.cloud/admin/v1/languages' \
+  -H 'Authorization: Bearer <TOKEN>'
+```
+
+### Get Allowed Languages
+
+Returns languages that are allowed in the instance. If languages are restricted, only those are returned. Otherwise, all supported languages are returned.
+
+#### HTTP Request
+
+```
+GET /admin/v1/languages/allowed
+```
+
+#### Permissions
+
+Requires `authenticated` user.
+
+### Get Default Language
+
+Returns the default/fallback language used when a user's preferred language is not available.
+
+#### HTTP Request
+
+```
+GET /admin/v1/languages/default
+```
+
+#### Permissions
+
+Requires `iam.read` permission.
+
+#### Response
+
+<ResponseField name="language" type="string">
+  The default language code (e.g., "en").
+</ResponseField>
+
+### Set Default Language
+
+Sets the default/fallback language for the instance.
+
+#### HTTP Request
+
+```
+PUT /admin/v1/languages/default/{language}
+```
+
+#### Permissions
+
+Requires `iam.write` permission.
+
+#### Path Parameters
+
+<ParamField path="language" type="string" required>
+  The language code to set as default (e.g., "en", "de").
+</ParamField>
+
+#### Example Request
+
+```bash
+curl -X PUT 'https://api.zitadel.cloud/admin/v1/languages/default/en' \
+  -H 'Authorization: Bearer <TOKEN>'
+```
+
+## OIDC Settings
+
+### Get OIDC Settings
+
+Returns the OIDC settings that define token lifetimes for the instance.
+
+#### HTTP Request
+
+```
+GET /admin/v1/settings/oidc
+```
+
+#### Permissions
+
+Requires `iam.read` permission.
+
+#### Response
+
+<ResponseField name="settings" type="object">
+  OIDC configuration.
+  
+  <ResponseField name="access_token_lifetime" type="string">
+    Lifetime of access tokens (e.g., "12h").
+  </ResponseField>
+  
+  <ResponseField name="id_token_lifetime" type="string">
+    Lifetime of ID tokens (e.g., "12h").
+  </ResponseField>
+  
+  <ResponseField name="refresh_token_idle_expiration" type="string">
+    Idle timeout for refresh tokens (e.g., "720h").
+  </ResponseField>
+  
+  <ResponseField name="refresh_token_expiration" type="string">
+    Absolute expiration for refresh tokens (e.g., "2160h").
+  </ResponseField>
+</ResponseField>
+
+#### Example Request
+
+```bash
+curl -X GET 'https://api.zitadel.cloud/admin/v1/settings/oidc' \
+  -H 'Authorization: Bearer <TOKEN>'
+```
+
+### Add OIDC Settings
+
+Creates new OIDC settings for the instance.
+
+#### HTTP Request
+
+```
+POST /admin/v1/settings/oidc
+```
+
+#### Permissions
+
+Requires `iam.write` permission.
+
+#### Request Body
+
+<ParamField path="access_token_lifetime" type="string">
+  Lifetime for access tokens (duration format, e.g., "12h").
+</ParamField>
+
+<ParamField path="id_token_lifetime" type="string">
+  Lifetime for ID tokens (duration format, e.g., "12h").
+</ParamField>
+
+<ParamField path="refresh_token_idle_expiration" type="string">
+  Idle timeout for refresh tokens (duration format, e.g., "720h").
+</ParamField>
+
+<ParamField path="refresh_token_expiration" type="string">
+  Absolute expiration for refresh tokens (duration format, e.g., "2160h").
+</ParamField>
+
+### Update OIDC Settings
+
+Updates existing OIDC settings for the instance.
+
+#### HTTP Request
+
+```
+PUT /admin/v1/settings/oidc
+```
+
+#### Permissions
+
+Requires `iam.write` permission.
+
+#### Request Body
+
+Same as Add OIDC Settings.
+
+#### Example Request
+
+```bash
+curl -X PUT 'https://api.zitadel.cloud/admin/v1/settings/oidc' \
+  -H 'Authorization: Bearer <TOKEN>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "access_token_lifetime": "12h",
+    "id_token_lifetime": "12h",
+    "refresh_token_idle_expiration": "720h",
+    "refresh_token_expiration": "2160h"
+  }'
+```
+
+## Security Settings
+
+### Get Security Policy
+
+Returns the security settings of the ZITADEL instance.
+
+#### HTTP Request
+
+```
+GET /admin/v1/policies/security
+```
+
+#### Permissions
+
+Requires `iam.policy.read` permission.
+
+#### Response
+
+<ResponseField name="policy" type="object">
+  Security policy configuration.
+  
+  <ResponseField name="enable_iframe_embedding" type="boolean">
+    Whether iframe embedding is allowed.
+  </ResponseField>
+  
+  <ResponseField name="allowed_origins" type="array">
+    List of origins allowed for iframe embedding.
+  </ResponseField>
+  
+  <ResponseField name="enable_impersonation" type="boolean">
+    Whether user impersonation is enabled.
+  </ResponseField>
+</ResponseField>
+
+#### Example Request
+
+```bash
+curl -X GET 'https://api.zitadel.cloud/admin/v1/policies/security' \
+  -H 'Authorization: Bearer <TOKEN>'
+```
+
+### Set Security Policy
+
+Updates the security settings of the ZITADEL instance.
+
+#### HTTP Request
+
+```
+PUT /admin/v1/policies/security
+```
+
+#### Permissions
+
+Requires `iam.policy.write` permission.
+
+#### Request Body
+
+<ParamField path="enable_iframe_embedding" type="boolean">
+  Allow the login UI to be embedded in iframes.
+</ParamField>
+
+<ParamField path="allowed_origins" type="array">
+  List of origins allowed to embed the login UI (when iframe embedding is enabled).
+</ParamField>
+
+<ParamField path="enable_impersonation" type="boolean">
+  Allow administrators to impersonate users.
+</ParamField>
+
+#### Example Request
+
+```bash
+curl -X PUT 'https://api.zitadel.cloud/admin/v1/policies/security' \
+  -H 'Authorization: Bearer <TOKEN>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "enable_iframe_embedding": false,
+    "allowed_origins": [],
+    "enable_impersonation": true
+  }'
+```
+
+## Secret Generators
+
+### List Secret Generators
+
+Lists all configured secret generators that define how secrets (verification codes, OTPs, etc.) are generated.
+
+#### HTTP Request
+
+```
+POST /admin/v1/secretgenerators/_search
+```
+
+#### Permissions
+
+Requires `iam.read` permission.
+
+### Get Secret Generator
+
+Returns configuration for a specific secret generator type.
+
+#### HTTP Request
+
+```
+GET /admin/v1/secretgenerators/{generator_type}
+```
+
+#### Permissions
+
+Requires `iam.read` permission.
+
+#### Path Parameters
+
+<ParamField path="generator_type" type="enum" required>
+  Type of generator (e.g., "PasswordResetCode", "EmailVerificationCode").
+</ParamField>
+
+### Update Secret Generator
+
+Updates configuration for a secret generator.
+
+#### HTTP Request
+
+```
+PUT /admin/v1/secretgenerators/{generator_type}
+```
+
+#### Permissions
+
+Requires `iam.write` permission.
+
+#### Path Parameters
+
+<ParamField path="generator_type" type="enum" required>
+  Type of generator to update.
+</ParamField>
+
+#### Request Body
+
+<ParamField path="length" type="integer">
+  Length of generated secrets.
+</ParamField>
+
+<ParamField path="expiry" type="string">
+  How long the secret remains valid (duration format).
+</ParamField>
+
+<ParamField path="include_lower_letters" type="boolean">
+  Include lowercase letters in the secret.
+</ParamField>
+
+<ParamField path="include_upper_letters" type="boolean">
+  Include uppercase letters in the secret.
+</ParamField>
+
+<ParamField path="include_digits" type="boolean">
+  Include digits in the secret.
+</ParamField>
+
+<ParamField path="include_symbols" type="boolean">
+  Include symbols in the secret.
+</ParamField>
+
+## Notes
+
+- These settings apply to all organizations in the instance
+- Token lifetimes affect all OIDC applications
+- Security policies should be carefully configured to balance security and usability
+- Secret generator settings affect password reset codes, email verification, OTP, etc.

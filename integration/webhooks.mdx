@@ -1,0 +1,738 @@
+---
+title: Webhooks (Actions v2)
+description: Receive real-time notifications and customize ZITADEL behavior using webhooks with Actions v2
+---
+
+Webhooks in ZITADEL are implemented through Actions v2, allowing you to receive real-time notifications about events and customize ZITADEL's behavior by calling external HTTP endpoints. This enables you to integrate ZITADEL with external systems, trigger custom workflows, and react to authentication and authorization events.
+
+## What are Webhooks?
+
+Webhooks are HTTP callbacks that ZITADEL sends to your endpoints when specific events occur. Unlike polling, webhooks provide real-time notifications, enabling immediate reactions to changes in ZITADEL.
+
+**Use cases for webhooks:**
+
+- Sync user data to external systems when users are created or updated
+- Trigger workflows when users authenticate or complete registration
+- Send notifications to administrators when security events occur
+- Validate data with external systems before allowing operations
+- Enrich authentication flows with data from external sources
+- Audit and log all authentication events to external systems
+
+## Actions v2 Architecture
+
+Actions v2 consists of three components:
+
+### 1. Endpoint
+
+Your external HTTP service that receives webhook requests from ZITADEL. This can be any HTTP server capable of receiving POST requests.
+
+### 2. Target
+
+A ZITADEL resource containing information about how to call your endpoint:
+
+- Endpoint URL
+- Authentication method
+- Timeout configuration
+- Error handling behavior
+
+### 3. Execution
+
+A ZITADEL resource specifying when to call which targets:
+
+- **Condition type**: Request, Response, Function, or Event
+- **Specific trigger**: Which API call, event, or function triggers the webhook
+- **Target list**: Which endpoints to call
+
+## Webhook Flow
+
+1. User performs an action (login, registration, API call, etc.)
+2. ZITADEL reaches a configured execution point
+3. ZITADEL calls all configured targets for that execution
+4. Your endpoint receives the webhook payload
+5. Your endpoint processes the request and returns a response
+6. ZITADEL continues or modifies its behavior based on the response
+
+## Execution Conditions
+
+Actions v2 supports four types of execution conditions:
+
+### Request Executions
+
+Trigger webhooks **before** ZITADEL processes an API request, allowing you to:
+
+- Validate or reject requests
+- Modify request data
+- Enrich requests with external data
+- Enforce custom authorization rules
+
+**Example use case**: Validate that a user's email domain is allowed before creating the user.
+
+### Response Executions
+
+Trigger webhooks **after** ZITADEL processes an API request, allowing you to:
+
+- React to successful operations
+- Sync data to external systems
+- Send notifications
+- Trigger downstream workflows
+
+**Example use case**: Sync newly created users to your CRM system.
+
+### Function Executions
+
+Trigger webhooks during specific ZITADEL functions (replaces Actions v1), allowing you to:
+
+- Customize authentication flows
+- Modify token claims
+- Enrich user data during login
+- Implement custom authorization logic
+
+**Example use case**: Add custom claims to access tokens based on external system data.
+
+### Event Executions
+
+Trigger webhooks when ZITADEL events occur, allowing you to:
+
+- Monitor system events in real-time
+- Send notifications for security events
+- Audit all authentication activity
+- React to state changes
+
+**Example use case**: Send alert when a user account is locked.
+
+## Creating a Target
+
+Targets define how ZITADEL calls your webhook endpoint.
+
+<Tabs groupId="target-type">
+<TabItem value="webhook" label="Webhook Target">
+
+**Create a webhook target:**
+
+```bash
+curl -X POST "https://${CUSTOM_DOMAIN}/v2/actions/targets" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -d '{
+    "name": "User Sync Webhook",
+    "restWebhook": {
+      "interruptOnError": true
+    },
+    "endpoint": "https://api.example.com/webhooks/zitadel/users",
+    "timeout": "10s"
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "id": "337246363446151234",
+  "creationDate": "2024-01-10T13:21:36.959699Z",
+  "signingKey": "OpUHaCtEqh8swdJ5xUYbQ2bhej1abcXYZ"
+}
+```
+
+Save the `id` and `signingKey` for later use.
+
+</TabItem>
+<TabItem value="async" label="Async Webhook">
+
+**Create an asynchronous webhook target:**
+
+```bash
+curl -X POST "https://${CUSTOM_DOMAIN}/v2/actions/targets" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -d '{
+    "name": "Async User Notification",
+    "restAsync": {},
+    "endpoint": "https://api.example.com/webhooks/notifications",
+    "timeout": "30s"
+  }'
+```
+
+Asynchronous webhooks don't block the ZITADEL flow and are suitable for notifications and logging.
+
+</TabItem>
+</Tabs>
+
+### Target Configuration
+
+| Property | Description |
+|----------|-------------|
+| `name` | Descriptive name for the target |
+| `endpoint` | URL of your webhook endpoint |
+| `timeout` | Maximum time to wait for response (e.g., "10s") |
+| `restWebhook.interruptOnError` | If true, ZITADEL flow stops on webhook failure |
+| `restAsync` | For asynchronous webhooks (fire-and-forget) |
+
+## Creating an Execution
+
+Executions define when to trigger your webhooks.
+
+### Request Execution
+
+**Trigger webhook before creating a user:**
+
+```bash
+curl -X PUT "https://${CUSTOM_DOMAIN}/v2/actions/executions" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -d '{
+    "condition": {
+      "request": {
+        "method": "/zitadel.user.v2.UserService/AddHumanUser"
+      }
+    },
+    "targets": ["337246363446151234"]
+  }'
+```
+
+### Response Execution
+
+**Trigger webhook after creating a user:**
+
+```bash
+curl -X PUT "https://${CUSTOM_DOMAIN}/v2/actions/executions" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -d '{
+    "condition": {
+      "response": {
+        "method": "/zitadel.user.v2.UserService/AddHumanUser"
+      }
+    },
+    "targets": ["337246363446151234"]
+  }'
+```
+
+### Function Execution
+
+**Trigger webhook during token creation:**
+
+```bash
+curl -X PUT "https://${CUSTOM_DOMAIN}/v2/actions/executions" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -d '{
+    "condition": {
+      "function": {
+        "name": "complement_token"
+      }
+    },
+    "targets": ["337246363446151234"]
+  }'
+```
+
+### Event Execution
+
+**Trigger webhook when user is locked:**
+
+```bash
+curl -X PUT "https://${CUSTOM_DOMAIN}/v2/actions/executions" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -d '{
+    "condition": {
+      "event": {
+        "event": "user.locked"
+      }
+    },
+    "targets": ["337246363446151234"]
+  }'
+```
+
+## Webhook Payload
+
+ZITADEL sends webhook payloads as JSON in the request body.
+
+### Request Execution Payload
+
+```json
+{
+  "fullMethod": "/zitadel.user.v2.UserService/AddHumanUser",
+  "instanceID": "123456789012345678",
+  "orgID": "234567890123456789",
+  "projectID": "345678901234567890",
+  "userID": "456789012345678901",
+  "request": {
+    "user": {
+      "profile": {
+        "givenName": "John",
+        "familyName": "Doe"
+      },
+      "email": {
+        "email": "john.doe@example.com"
+      }
+    }
+  }
+}
+```
+
+### Response Execution Payload
+
+```json
+{
+  "fullMethod": "/zitadel.user.v2.UserService/AddHumanUser",
+  "instanceID": "123456789012345678",
+  "orgID": "234567890123456789",
+  "projectID": "345678901234567890",
+  "userID": "567890123456789012",
+  "request": {
+    "user": {
+      "profile": {
+        "givenName": "John",
+        "familyName": "Doe"
+      },
+      "email": {
+        "email": "john.doe@example.com"
+      }
+    }
+  },
+  "response": {
+    "userId": "567890123456789012",
+    "details": {
+      "sequence": "1",
+      "changeDate": "2024-01-10T10:30:00Z"
+    }
+  }
+}
+```
+
+### Event Execution Payload
+
+```json
+{
+  "event": "user.locked",
+  "instanceID": "123456789012345678",
+  "orgID": "234567890123456789",
+  "userID": "567890123456789012",
+  "eventData": {
+    "userId": "567890123456789012",
+    "userName": "john.doe@example.com",
+    "lockedAt": "2024-01-10T10:30:00Z",
+    "reason": "Too many failed login attempts"
+  }
+}
+```
+
+## Webhook Response
+
+Your webhook endpoint should respond with appropriate HTTP status codes:
+
+### Successful Response
+
+```json
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "status": "success"
+}
+```
+
+### Error Response
+
+```json
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+
+{
+  "status": "error",
+  "message": "Email domain not allowed"
+}
+```
+
+If `interruptOnError` is true and your webhook returns an error, ZITADEL will abort the operation and return the error to the user.
+
+### Response with Modifications (Request Executions)
+
+For request executions, you can modify the request data:
+
+```json
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "status": "success",
+  "request": {
+    "user": {
+      "profile": {
+        "givenName": "John",
+        "familyName": "Doe",
+        "displayName": "John Doe (Modified)"
+      },
+      "email": {
+        "email": "john.doe@example.com"
+      },
+      "metadata": [
+        {
+          "key": "department",
+          "value": "Engineering"
+        }
+      ]
+    }
+  }
+}
+```
+
+## Webhook Security
+
+### Signature Verification
+
+ZITADEL signs all webhook requests with HMAC-SHA256. Verify signatures to ensure requests are from ZITADEL:
+
+**Signature is sent in the header:**
+
+```
+X-Zitadel-Signature: sha256=SIGNATURE_VALUE
+```
+
+**Verify signature in your webhook endpoint:**
+
+```javascript
+const crypto = require('crypto');
+
+function verifyWebhookSignature(payload, signature, signingKey) {
+  const hmac = crypto.createHmac('sha256', signingKey);
+  hmac.update(JSON.stringify(payload));
+  const expectedSignature = 'sha256=' + hmac.digest('hex');
+  
+  return crypto.timingSafeEqual(
+    Buffer.from(expectedSignature),
+    Buffer.from(signature)
+  );
+}
+
+// Express.js example
+app.post('/webhooks/zitadel', (req, res) => {
+  const signature = req.headers['x-zitadel-signature'];
+  const signingKey = process.env.ZITADEL_SIGNING_KEY;
+  
+  if (!verifyWebhookSignature(req.body, signature, signingKey)) {
+    return res.status(401).json({ error: 'Invalid signature' });
+  }
+  
+  // Process webhook
+  res.json({ status: 'success' });
+});
+```
+
+### IP Allowlisting
+
+Restrict webhook endpoints to accept requests only from ZITADEL's IP addresses.
+
+### HTTPS Required
+
+Webhook endpoints must use HTTPS. ZITADEL will not send webhooks to HTTP endpoints.
+
+### Authentication Headers
+
+You can add custom headers to webhook requests for additional authentication:
+
+```bash
+curl -X POST "https://${CUSTOM_DOMAIN}/v2/actions/targets" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -d '{
+    "name": "Authenticated Webhook",
+    "restWebhook": {
+      "interruptOnError": true
+    },
+    "endpoint": "https://api.example.com/webhooks/zitadel",
+    "timeout": "10s"
+  }'
+```
+
+## Implementing a Webhook Endpoint
+
+### Node.js/Express Example
+
+```javascript
+const express = require('express');
+const crypto = require('crypto');
+const app = express();
+
+app.use(express.json());
+
+const SIGNING_KEY = process.env.ZITADEL_SIGNING_KEY;
+
+function verifySignature(payload, signature) {
+  const hmac = crypto.createHmac('sha256', SIGNING_KEY);
+  hmac.update(JSON.stringify(payload));
+  const expectedSignature = 'sha256=' + hmac.digest('hex');
+  return crypto.timingSafeEqual(
+    Buffer.from(expectedSignature),
+    Buffer.from(signature)
+  );
+}
+
+app.post('/webhooks/zitadel/user-created', (req, res) => {
+  // Verify signature
+  const signature = req.headers['x-zitadel-signature'];
+  if (!verifySignature(req.body, signature)) {
+    return res.status(401).json({ error: 'Invalid signature' });
+  }
+  
+  const { fullMethod, userID, request, response } = req.body;
+  
+  console.log('User created:', {
+    userId: userID,
+    email: request.user.email.email,
+    name: `${request.user.profile.givenName} ${request.user.profile.familyName}`
+  });
+  
+  // Sync to external system
+  syncToExternalSystem({
+    zitadelUserId: userID,
+    email: request.user.email.email,
+    firstName: request.user.profile.givenName,
+    lastName: request.user.profile.familyName
+  });
+  
+  res.json({ status: 'success' });
+});
+
+app.post('/webhooks/zitadel/validate-email', (req, res) => {
+  const { request } = req.body;
+  const email = request.user.email.email;
+  const allowedDomains = ['example.com', 'company.com'];
+  const domain = email.split('@')[1];
+  
+  if (!allowedDomains.includes(domain)) {
+    return res.status(400).json({
+      status: 'error',
+      message: `Email domain ${domain} is not allowed`
+    });
+  }
+  
+  res.json({ status: 'success' });
+});
+
+app.listen(3000, () => {
+  console.log('Webhook server listening on port 3000');
+});
+```
+
+### Python/Flask Example
+
+```python
+import os
+import hmac
+import hashlib
+import json
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+SIGNING_KEY = os.getenv('ZITADEL_SIGNING_KEY').encode()
+
+def verify_signature(payload, signature):
+    expected = 'sha256=' + hmac.new(
+        SIGNING_KEY,
+        json.dumps(payload).encode(),
+        hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(expected, signature)
+
+@app.route('/webhooks/zitadel/user-created', methods=['POST'])
+def user_created():
+    signature = request.headers.get('X-Zitadel-Signature')
+    payload = request.json
+    
+    if not verify_signature(payload, signature):
+        return jsonify({'error': 'Invalid signature'}), 401
+    
+    user_id = payload['userID']
+    email = payload['request']['user']['email']['email']
+    
+    print(f'User created: {user_id} ({email})')
+    
+    # Sync to external system
+    sync_to_external_system(payload)
+    
+    return jsonify({'status': 'success'})
+
+if __name__ == '__main__':
+    app.run(port=3000)
+```
+
+## Testing Webhooks
+
+### Local Testing with Webhook.site
+
+Use [Webhook.site](https://webhook.site) with XHR redirect to test webhooks locally:
+
+1. Open webhook.site and get your unique URL
+2. Configure XHR redirect to your local endpoint (e.g., `http://localhost:3000/webhook`)
+3. Create a target in ZITADEL pointing to your webhook.site URL
+4. Add CORS headers to your local endpoint
+5. Keep webhook.site tab open while testing
+
+See [Testing Actions V2 with Webhook.site](/guides/integrate/actions/webhook-site-setup) for detailed instructions.
+
+### Using ngrok
+
+Expose your local server to the internet:
+
+```bash
+# Install ngrok
+npm install -g ngrok
+
+# Expose local port 3000
+ngrok http 3000
+
+# Use the generated HTTPS URL as your webhook endpoint
+# Example: https://abc123.ngrok.io/webhooks/zitadel
+```
+
+## Common Use Cases
+
+### User Provisioning to External System
+
+```javascript
+app.post('/webhooks/zitadel/user-created', async (req, res) => {
+  const { userID, request } = req.body;
+  
+  await fetch('https://crm.example.com/api/contacts', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${CRM_API_KEY}`
+    },
+    body: JSON.stringify({
+      externalId: userID,
+      email: request.user.email.email,
+      firstName: request.user.profile.givenName,
+      lastName: request.user.profile.familyName
+    })
+  });
+  
+  res.json({ status: 'success' });
+});
+```
+
+### Email Domain Validation
+
+```javascript
+app.post('/webhooks/zitadel/validate-user', (req, res) => {
+  const email = req.body.request.user.email.email;
+  const allowedDomains = process.env.ALLOWED_DOMAINS.split(',');
+  const domain = email.split('@')[1];
+  
+  if (!allowedDomains.includes(domain)) {
+    return res.status(400).json({
+      status: 'error',
+      message: `Registration restricted to ${allowedDomains.join(', ')}`
+    });
+  }
+  
+  res.json({ status: 'success' });
+});
+```
+
+### Enrich Token Claims
+
+```javascript
+app.post('/webhooks/zitadel/enrich-token', async (req, res) => {
+  const { userID } = req.body;
+  
+  // Fetch user data from external system
+  const response = await fetch(
+    `https://api.example.com/users/${userID}`,
+    {
+      headers: { 'Authorization': `Bearer ${API_KEY}` }
+    }
+  );
+  
+  const userData = await response.json();
+  
+  // Return modified response with additional claims
+  res.json({
+    status: 'success',
+    claims: {
+      department: userData.department,
+      employee_id: userData.employeeId,
+      manager_email: userData.managerEmail
+    }
+  });
+});
+```
+
+### Security Event Notification
+
+```javascript
+app.post('/webhooks/zitadel/user-locked', async (req, res) => {
+  const { userID, eventData } = req.body;
+  
+  // Send notification to security team
+  await fetch('https://api.slack.com/webhooks/WEBHOOK_ID', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text: `User account locked: ${eventData.userName}`,
+      blocks: [
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `*User Account Locked*\n*User:* ${eventData.userName}\n*Reason:* ${eventData.reason}\n*Time:* ${eventData.lockedAt}`
+          }
+        }
+      ]
+    })
+  });
+  
+  res.json({ status: 'success' });
+});
+```
+
+## Best Practices
+
+1. **Verify signatures**: Always validate webhook signatures
+2. **Use HTTPS**: Never expose webhook endpoints over HTTP
+3. **Implement idempotency**: Handle duplicate webhooks gracefully
+4. **Respond quickly**: Process webhooks asynchronously if needed
+5. **Return proper status codes**: Use appropriate HTTP codes
+6. **Log all webhooks**: Keep audit trail of webhook calls
+7. **Monitor failures**: Track and alert on webhook errors
+8. **Set appropriate timeouts**: Balance between reliability and performance
+9. **Handle errors gracefully**: Decide when to interrupt vs. allow to fail
+10. **Test thoroughly**: Validate all webhook scenarios before production
+
+## Troubleshooting
+
+**Webhook not received:**
+- Check endpoint URL is correct and accessible
+- Verify HTTPS certificate is valid
+- Check firewall rules allow ZITADEL IP addresses
+- Ensure execution is properly configured
+
+**Signature verification fails:**
+- Verify signing key matches the one from target creation
+- Ensure payload is not modified before verification
+- Check charset encoding (use UTF-8)
+
+**Webhook times out:**
+- Reduce processing time in webhook handler
+- Move heavy processing to background jobs
+- Increase timeout in target configuration
+
+**Flow interrupted unexpectedly:**
+- Check webhook response status codes
+- Review `interruptOnError` setting
+- Check webhook endpoint logs for errors
+
+## Resources
+
+- [Actions v2 Concepts](/concepts/features/actions_v2)
+- [Testing Actions v2](/guides/integrate/actions/testing-request)
+- [Webhook.site Setup](/guides/integrate/actions/webhook-site-setup)
+- [Actions v2 Examples](https://github.com/zitadel/actions/tree/main/actions-v2-cloudflare-workers)
+- [Migration Guide](/guides/integrate/actions/migrate-from-v1)

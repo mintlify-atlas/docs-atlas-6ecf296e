@@ -1,0 +1,220 @@
+---
+title: List Users
+description: Search and list users in your ZITADEL instance
+---
+
+## Endpoint
+
+```
+POST /v2/users
+```
+
+## Description
+
+Search for users. By default, all users of your instance that you have permission to read will be returned. Make sure to include a limit and sorting for pagination.
+
+## Required Permission
+
+- `authenticated`
+
+## Request Body
+
+<ParamField body="query" type="object">
+  Pagination and sorting options.
+  
+  <ParamField body="offset" type="string">
+    Offset for pagination (number of items to skip).
+  </ParamField>
+  
+  <ParamField body="limit" type="integer">
+    Maximum number of results to return.
+  </ParamField>
+  
+  <ParamField body="asc" type="boolean">
+    Sort in ascending order (true) or descending (false).
+  </ParamField>
+</ParamField>
+
+<ParamField body="sortingColumn" type="string">
+  Field to sort by. Options include:
+  - `USER_FIELD_NAME_USER_NAME`
+  - `USER_FIELD_NAME_FIRST_NAME`
+  - `USER_FIELD_NAME_LAST_NAME`
+  - `USER_FIELD_NAME_EMAIL`
+  - `USER_FIELD_NAME_STATE`
+  - `USER_FIELD_NAME_CREATION_DATE`
+</ParamField>
+
+<ParamField body="queries" type="array">
+  Search filters to apply. Each filter narrows the results.
+  
+  <ParamField body="userNameQuery" type="object">
+    Filter by username.
+    
+    <ParamField body="userName" type="string">
+      Username to search for (supports wildcards).
+    </ParamField>
+    
+    <ParamField body="method" type="string">
+      Search method: `TEXT_QUERY_METHOD_EQUALS`, `TEXT_QUERY_METHOD_STARTS_WITH`, `TEXT_QUERY_METHOD_CONTAINS`.
+    </ParamField>
+  </ParamField>
+  
+  <ParamField body="emailQuery" type="object">
+    Filter by email address.
+    
+    <ParamField body="emailAddress" type="string">
+      Email to search for.
+    </ParamField>
+    
+    <ParamField body="method" type="string">
+      Search method.
+    </ParamField>
+  </ParamField>
+  
+  <ParamField body="stateQuery" type="object">
+    Filter by user state.
+    
+    <ParamField body="state" type="string">
+      State to filter by: `USER_STATE_ACTIVE`, `USER_STATE_INACTIVE`, `USER_STATE_DELETED`, `USER_STATE_LOCKED`, `USER_STATE_INITIAL`.
+    </ParamField>
+  </ParamField>
+  
+  <ParamField body="organizationIdQuery" type="object">
+    Filter by organization.
+    
+    <ParamField body="organizationId" type="string">
+      Organization ID to filter by.
+    </ParamField>
+  </ParamField>
+</ParamField>
+
+## Response
+
+<ResponseField name="details" type="object">
+  Pagination details.
+  
+  <ResponseField name="totalResult" type="string">
+    Total number of users matching the query.
+  </ResponseField>
+  
+  <ResponseField name="processedSequence" type="string">
+    Sequence number of the query.
+  </ResponseField>
+  
+  <ResponseField name="timestamp" type="timestamp">
+    Timestamp of the query.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="result" type="array">
+  Array of users matching the query.
+  
+  <ResponseField name="userId" type="string">
+    Unique identifier of the user.
+  </ResponseField>
+  
+  <ResponseField name="username" type="string">
+    Username of the user.
+  </ResponseField>
+  
+  <ResponseField name="state" type="string">
+    Current state of the user.
+  </ResponseField>
+  
+  <ResponseField name="loginNames" type="array">
+    Possible login names for the user.
+  </ResponseField>
+  
+  <ResponseField name="preferredLoginName" type="string">
+    Preferred login name.
+  </ResponseField>
+  
+  <ResponseField name="human" type="object">
+    Human user details (if applicable).
+    
+    <ResponseField name="profile" type="object">
+      Profile information.
+    </ResponseField>
+    
+    <ResponseField name="email" type="object">
+      Email information.
+    </ResponseField>
+    
+    <ResponseField name="phone" type="object">
+      Phone information.
+    </ResponseField>
+  </ResponseField>
+  
+  <ResponseField name="machine" type="object">
+    Machine user details (if applicable).
+  </ResponseField>
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X POST https://your-domain.zitadel.cloud/v2/users \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": {
+      "limit": 50,
+      "asc": true
+    },
+    "sortingColumn": "USER_FIELD_NAME_USER_NAME",
+    "queries": [
+      {
+        "stateQuery": {
+          "state": "USER_STATE_ACTIVE"
+        }
+      },
+      {
+        "emailQuery": {
+          "emailAddress": "@example.com",
+          "method": "TEXT_QUERY_METHOD_CONTAINS"
+        }
+      }
+    ]
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "details": {
+    "totalResult": "42",
+    "processedSequence": "1500",
+    "timestamp": "2024-03-15T13:00:00Z"
+  },
+  "result": [
+    {
+      "userId": "d654e6ba-70a3-48ef-a95d-37c8d8a7901a",
+      "username": "minnie.mouse",
+      "state": "USER_STATE_ACTIVE",
+      "loginNames": [
+        "minnie.mouse@example.com",
+        "minnie.mouse@zitadel.cloud"
+      ],
+      "preferredLoginName": "minnie.mouse@example.com",
+      "human": {
+        "profile": {
+          "givenName": "Minnie",
+          "familyName": "Mouse",
+          "displayName": "Minnie Mouse"
+        },
+        "email": {
+          "email": "minnie.mouse@example.com",
+          "isVerified": true
+        }
+      }
+    }
+  ]
+}
+```
+
+## Error Responses
+
+- `400 Bad Request` - Invalid list query
+- `403 Forbidden` - Insufficient permissions

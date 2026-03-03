@@ -1,0 +1,74 @@
+---
+title: Update Organization
+description: Change the name of an organization
+---
+
+## Endpoint
+
+```
+POST /v2/organizations/{organization_id}
+```
+
+## Description
+
+Change the name of the organization. Note that since the name is used to generate the organization's default domain, changing the name will also change the domain. Additionally, if the domain is used as suffix for user logins, their login names will also change accordingly.
+
+## Required Permission
+
+- `org.write`
+
+## Path Parameters
+
+<ParamField path="organization_id" type="string" required>
+  The unique identifier of the organization to be updated.
+  
+  **Min Length:** 1  
+  **Max Length:** 200
+</ParamField>
+
+## Request Body
+
+<ParamField body="name" type="string" required>
+  The new name for the organization to be set.
+  
+  **Min Length:** 1  
+  **Max Length:** 200
+</ParamField>
+
+## Response
+
+<ResponseField name="changeDate" type="timestamp">
+  The timestamp of the update to the organization.
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X POST https://your-domain.zitadel.cloud/v2/organizations/69629026806489455 \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "ACME Corporation Updated"
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "changeDate": "2025-01-23T10:34:18.051Z"
+}
+```
+
+## Error Responses
+
+- `404 Not Found` - Organization not found
+- `409 Conflict` - Organization name already taken
+- `400 Bad Request` - Invalid request data
+- `403 Forbidden` - Insufficient permissions
+
+## Important Notes
+
+- Changing the organization name will change the default domain
+- User login names that use the organization domain will be affected
+- Custom verified domains added to the organization will not be affected
