@@ -326,7 +326,7 @@ ZITADEL acts as an identity broker, allowing you to:
 4. Apply organization-specific policies
 5. Maintain audit trail across providers
 
-Learn more in the [Identity Brokering documentation](/concepts/features/identity-brokering).
+ZITADEL acts as an identity broker, aggregating multiple identity providers while maintaining a centralized user management system.
 
 ## Domain Discovery
 
@@ -352,7 +352,7 @@ User enters email → ZITADEL detects organization → Shows appropriate IdP opt
 
 </Steps>
 
-See [Domain Discovery guide](/guides/solution-scenarios/domain-discovery) for details.
+Domain discovery automates organization and IdP selection based on the user's email domain.
 
 ## MFA with External IdPs
 
@@ -460,7 +460,7 @@ GET /admin/v1/idps/_search
 POST /admin/v1/policies/login/idps
 ```
 
-See the [Admin Service API](/apis/resources/admin) for complete documentation.
+See the [Admin Service API](/api/admin-service/overview) for complete documentation.
 
 ## Multi-Tenancy Considerations
 
@@ -497,8 +497,7 @@ Update all redirect URIs at external providers to point to ZITADEL
 
 ## Related Documentation
 
-- [Identity Provider Introduction](/guides/integrate/identity-providers/introduction)
-- [Identity Brokering](/concepts/features/identity-brokering)
-- [Domain Discovery](/guides/solution-scenarios/domain-discovery)
 - [LDAP Integration](/authentication/ldap)
-- [B2B Onboarding](/guides/integrate/onboarding/b2b)
+- [OIDC Integration](/integration/oidc)
+- [SAML Integration](/integration/saml)
+- [Multi-Tenancy](/concepts/multi-tenancy)

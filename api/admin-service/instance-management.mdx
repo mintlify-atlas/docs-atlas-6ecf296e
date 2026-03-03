@@ -7,7 +7,7 @@ Instance management endpoints allow you to view and configure your ZITADEL insta
 
 ## Get My Instance
 
-**Deprecated**: Use [Instance Service v2 GetInstance](/api/instance-service-v2/get-instance) instead.
+**Deprecated**: Use Instance Service v2 GetInstance instead.
 
 Returns details about the current instance such as name, version, and domains.
 
@@ -75,7 +75,7 @@ curl -X GET 'https://api.zitadel.cloud/admin/v1/instances/me' \
 
 ## List Instance Domains
 
-**Deprecated**: Use [Instance Service v2 GetInstance](/api/instance-service-v2/get-instance) instead.
+**Deprecated**: Use Instance Service v2 GetInstance instead.
 
 Returns a list of domains configured for this ZITADEL instance.
 
@@ -118,7 +118,7 @@ curl -X POST 'https://api.zitadel.cloud/admin/v1/domains/_search' \
 
 ## List Trusted Domains
 
-**Deprecated**: Use [Instance Service v2 ListTrustedDomains](/api/instance-service-v2/list-trusted-domains) instead.
+**Deprecated**: Use Instance Service v2 ListTrustedDomains instead.
 
 Returns domains that are trusted for use as public hosts.
 
@@ -134,7 +134,7 @@ Requires `iam.read` permission.
 
 ## Add Trusted Domain
 
-**Deprecated**: Use [Instance Service v2 AddTrustedDomain](/api/instance-service-v2/add-trusted-domain) instead.
+**Deprecated**: Use Instance Service v2 AddTrustedDomain instead.
 
 Adds a domain to the list of trusted domains.
 
@@ -167,7 +167,7 @@ curl -X POST 'https://api.zitadel.cloud/admin/v1/trusted_domains' \
 
 ## Remove Trusted Domain
 
-**Deprecated**: Use [Instance Service v2 RemoveTrustedDomain](/api/instance-service-v2/remove-trusted-domain) instead.
+**Deprecated**: Use Instance Service v2 RemoveTrustedDomain instead.
 
 Removes a domain from the list of trusted domains.
 

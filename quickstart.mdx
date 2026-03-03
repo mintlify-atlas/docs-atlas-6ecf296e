@@ -14,7 +14,7 @@ Before you begin, make sure you have:
 - A terminal/command prompt
 
 <Note>
-This quickstart uses Docker Compose for local development. For production deployments, see [Kubernetes](/self-hosting/deploy/kubernetes) or [Docker Compose production guide](/self-hosting/deploy/compose).
+This quickstart uses Docker Compose for local development. For production deployments, see [Kubernetes](/deployment/kubernetes) or [Docker Compose production guide](/deployment/docker-compose).
 </Note>
 
 ## Step 1: Deploy ZITADEL Locally
@@ -285,7 +285,7 @@ ZITADEL exposes every capability over a typed API. Here's how to create a user w
     ```
 
     <Tip>
-    Explore the full API reference at [zitadel.com/docs/apis/introduction](/apis/introduction)
+    Explore the full [API reference](/api/overview)
     </Tip>
   </Step>
 </Steps>
@@ -295,22 +295,22 @@ ZITADEL exposes every capability over a typed API. Here's how to create a user w
 You've successfully deployed ZITADEL and created your first application! Here's what to explore next:
 
 <CardGroup cols={2}>
-  <Card title="Integrate with Your Framework" icon="code" href="/examples">
+  <Card title="Integrate with Your Framework" icon="code" href="/examples/nextjs">
     Ready-to-use examples for React, Next.js, Go, Python, and more
   </Card>
-  <Card title="Understand Multi-Tenancy" icon="building" href="/concepts/structure">
+  <Card title="Understand Multi-Tenancy" icon="building" href="/concepts/multi-tenancy">
     Learn about Instances, Organizations, and Projects
   </Card>
-  <Card title="Enable Passkeys" icon="key" href="/concepts/features/passkeys">
+  <Card title="Enable Passkeys" icon="key" href="/authentication/passkeys">
     Add passwordless authentication to your login flow
   </Card>
-  <Card title="Production Deployment" icon="server" href="/self-hosting/deploy/kubernetes">
+  <Card title="Production Deployment" icon="server" href="/deployment/kubernetes">
     Deploy ZITADEL to Kubernetes for high availability
   </Card>
-  <Card title="Custom Branding" icon="palette" href="/guides/manage/customize/branding">
-    Customize the login UI with your brand colors and logo
+  <Card title="OIDC Integration" icon="palette" href="/integration/oidc">
+    Learn how to integrate with OpenID Connect
   </Card>
-  <Card title="API Reference" icon="book" href="/apis/introduction">
+  <Card title="API Reference" icon="book" href="/api/overview">
     Explore connectRPC, gRPC, and REST APIs
   </Card>
 </CardGroup>

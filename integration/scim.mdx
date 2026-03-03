@@ -65,7 +65,7 @@ curl -X GET "https://${CUSTOM_DOMAIN}/scim/v2/${ORG_ID}/Users" \
   -H "Accept: application/scim+json"
 ```
 
-See [Authenticate Service Accounts](/guides/integrate/service-accounts/authenticate-service-accounts) for detailed authentication instructions.
+Service accounts can be authenticated using the OAuth 2.0 client credentials flow. Create a service account in ZITADEL and generate client credentials to use with the SCIM API.
 
 ## Supported Endpoints
 
@@ -647,7 +647,7 @@ SCIM errors follow RFC 7644 and include additional ZITADEL-specific information.
 
 ### Okta Integration
 
-See the [SCIM with Okta guide](/guides/integrate/scim-okta-guide) for step-by-step instructions.
+ZITADEL's SCIM API can be integrated with Okta and other identity providers for automated user provisioning.
 
 ### Custom Integration
 
@@ -761,6 +761,6 @@ console.log(`Found ${results.totalResults} users`);
 
 - [RFC 7643: SCIM Core Schema](https://datatracker.ietf.org/doc/html/rfc7643)
 - [RFC 7644: SCIM Protocol](https://datatracker.ietf.org/doc/html/rfc7644)
-- [ZITADEL SCIM Documentation](/guides/manage/user/scim2)
 - [SCIM.cloud](https://scim.cloud/)
-- [ZITADEL SCIM with Okta](/guides/integrate/scim-okta-guide)
+- [User Service API](/api/user-service/overview)
+- [OIDC Integration](/integration/oidc)

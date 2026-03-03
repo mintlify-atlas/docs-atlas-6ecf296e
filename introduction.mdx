@@ -13,13 +13,13 @@ No vendor lock-in. No compromise on control. Just a robust, API-first identity p
   <Card title="Quickstart" icon="rocket" href="/quickstart">
     Get ZITADEL running locally in under 3 minutes with Docker Compose
   </Card>
-  <Card title="Core Concepts" icon="book" href="/concepts">
+  <Card title="Core Concepts" icon="book" href="/concepts/architecture">
     Understand ZITADEL's architecture, multi-tenancy model, and event-driven design
   </Card>
-  <Card title="API Reference" icon="code" href="/apis">
+  <Card title="API Reference" icon="code" href="/api/overview">
     Explore connectRPC, gRPC, and REST APIs for every resource
   </Card>
-  <Card title="Examples & SDKs" icon="blocks" href="/examples">
+  <Card title="Examples & SDKs" icon="blocks" href="/sdks/overview">
     Ready-to-use examples for React, Next.js, Go, Python, and more
   </Card>
 </Cards>
@@ -57,26 +57,26 @@ We built ZITADEL to handle the hardest IAM challenges at scale — starting with
 ### Authentication
 
 - **Single Sign On (SSO)** — Unified login across all your applications
-- **Passwordless** — [Passkeys (FIDO2 / WebAuthn)](/concepts/features/passkeys) for phishing-resistant authentication
+- **Passwordless** — [Passkeys (FIDO2 / WebAuthn)](/authentication/passkeys) for phishing-resistant authentication
 - **Multi-Factor Authentication** — OTP, U2F, OTP Email, OTP SMS
-- **Enterprise & Social IdPs** — [LDAP](/guides/integrate/identity-providers/ldap), SAML, OIDC providers
-- **OpenID Connect certified** — Full OIDC compliance with [Device Authorization](/guides/integrate/login/oidc/device-authorization)
+- **Enterprise & Social IdPs** — [LDAP](/authentication/ldap), SAML, OIDC providers
+- **OpenID Connect certified** — Full OIDC compliance with device authorization support
 - **SAML 2.0** — Enterprise-grade federation
 - **Machine-to-Machine** — JWT Profile, PAT, Client Credentials
-- **Token Exchange** — [Impersonation and delegation](/guides/integrate/token-exchange)
+- **Token Exchange** — Impersonation and delegation support
 - **Hosted Login V2** — Fully customizable authentication UI
 
 ### Multi-Tenancy & B2B
 
 - **Infrastructure-level tenants** — Instances (high scale), Organizations, Projects
 - **Identity Brokering** — Pre-built IdP templates for customer authentication
-- **B2B Onboarding** — [Customizable self-service](/guides/integrate/onboarding/b2b) for your customers
+- **B2B Onboarding** — Customizable self-service for your customers
 - **Delegated Management** — Allow third parties to manage their own roles and users
 - **Domain Discovery** — Route users to the right organization based on email domain
 
 ### Integration & APIs
 
-- **Triple API Access** — [connectRPC, gRPC, and REST](/apis/introduction) for every resource
+- **Triple API Access** — [connectRPC, gRPC, and REST](/api/overview) for every resource
 - **Actions & Webhooks** — Custom code execution, token enrichment, external integrations
 - **RBAC** — Fine-grained role-based access control
 - **SCIM 2.0 Server** — Automated user provisioning
@@ -106,10 +106,10 @@ Start for free at [zitadel.com](https://zitadel.com) — no credit card required
 Full control over your identity infrastructure.
 
 <CardGroup cols={2}>
-  <Card title="Docker Compose" icon="docker" href="/self-hosting/deploy/compose">
+  <Card title="Docker Compose" icon="docker" href="/deployment/docker-compose">
     Single-node deployment for development and homelab setups
   </Card>
-  <Card title="Kubernetes" icon="kubernetes" href="/self-hosting/deploy/kubernetes">
+  <Card title="Kubernetes" icon="kubernetes" href="/deployment/kubernetes">
     Production-ready Helm charts for high availability
   </Card>
 </CardGroup>
@@ -171,13 +171,13 @@ graph TD
     Follow the [Quickstart Guide](/quickstart) to run ZITADEL locally in 3 minutes
   </Step>
   <Step title="Understand the Concepts">
-    Read about [ZITADEL's architecture and multi-tenancy model](/concepts)
+    Read about [ZITADEL's architecture and multi-tenancy model](/concepts/architecture)
   </Step>
   <Step title="Integrate Your App">
-    Explore [authentication examples](/examples) for your framework
+    Explore [authentication examples](/examples/nextjs) for your framework
   </Step>
   <Step title="Deploy to Production">
-    Review [production deployment guides](/self-hosting/deploy) for Kubernetes or Docker Compose
+    Review [production deployment guides](/deployment/kubernetes) for Kubernetes or Docker Compose
   </Step>
 </Steps>
 
